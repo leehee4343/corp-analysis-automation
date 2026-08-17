@@ -181,9 +181,9 @@
 - "순이익증가율"의 "흑자전환/적자전환" 텍스트 케이스(Phase 2 로그 참고)는 여전히 미해결, 대시보드가 안 쓰는 필드라 우선순위 낮음
 
 ### Phase 8 — 실행/배포 준비
-- [ ] 로컬 실행 스크립트 (`run.bat` 등)
-- [ ] README 정리 (설치/실행/폴더 설명)
-- [ ] (선택) 사용자 매뉴얼
+- [x] 로컬 실행 스크립트 `run.bat` — 처음 실행 시 venv/패키지/한국어 OCR 데이터 자동 준비 후 서버 기동 + 브라우저 자동 오픈. **주의**: 배치 파일에 한글 문구를 넣었더니 `chcp 65001`을 넣어도 cmd.exe가 파일을 여전히 시스템 코드페이지로 읽어 깨진 토큰을 명령어로 오인, 에러 메시지가 줄줄이 뜨는 문제 발생(서버 자체는 정상 기동하지만 보기엔 고장난 것처럼 보임) → **영문 메시지로 전량 교체**해 해결. 실제로 PowerShell로 두 번 구동해 HTTP 200 확인 (Claude, 2026-08-17)
+- [x] README 정리 (빠른 시작/수동 설치/실행/사용 방법/폴더 구조/테스트) (Claude, 2026-08-17)
+- [x] 사용자 매뉴얼 — 별도 문서 대신 README.md "사용 방법" 절로 충분하다고 판단(내부 소규모 도구라 과한 문서화 지양) (Claude, 2026-08-17)
 
 ---
 
@@ -212,3 +212,4 @@
 - 2026-08-17 (Claude): Phase 5 완료. `backend/app.py` + `backend/routers/{companies,upload,validation}.py`. `models.py`에 `CompanyUpdate`/`CompanyListItem`/`CompanyList`/`IssueEntry`/`DashboardSummary` 추가, `storage.py`에 `update_company`(PATCH용, 수정 필드와 연관된 이슈 자동 제거)/`latest_revenue`/`grade_band`(대시보드 신용등급 구간, 목업 도넛 범례 A~BBB/BB/B/CCC 이하와 동일) 추가. `httpx` 추가(FastAPI TestClient용). `tests/test_api.py` 8개(총 29개 테스트 통과) + `TestClient`로 실제 PDF 업로드→전체 API 흐름(루트 HTML 서빙 포함) 수동 스모크 테스트 완료. 다음 Phase 6는 `frontend/index.html`의 하드코딩 데이터를 이 API들로 교체하는 작업.
 - 2026-08-17 (Claude): Phase 6 착수 전 API 보강 — `GET /api/companies`에 `grade_band`/`revenue_min`/`revenue_max` 필터, `GET /api/companies/{id}/source-pdf`(원본 PDF 보기 버튼용), `CompanyListItem`에 `operating_profit_latest`/`diagnosis_summary`(5축 중 최저 등급, `storage.overall_diagnosis`) 추가. 테스트 32개로 증가.
 - 2026-08-17 (Claude): **Phase 6 완료.** `frontend/index.html`의 `<script>`를 전면 재작성 — 대시보드/목록/업로드/상세/검증 5개 화면 전부 하드코딩 데이터 대신 `/api/*` 호출로 렌더링. 사업자번호 기반 라우팅(`viewDetail(business_no)`)으로 상세 페이지를 임의 회사에 대해 동작하도록 일반화(기존엔 옥산농원 고정). CSS에 재무진단 등급별 링 색상(`.diag-ring.fair/.poor/.na`) 추가. 검증 페이지는 이슈 유형별 카드 + `prompt()` 인라인 수정 → PATCH로 이슈 해제. 실행/검증: Playwright(Chromium)를 이 머신에 새로 설치(`playwright install chromium`, ~300MB)해 실제 `uvicorn backend.app:app`을 띄우고 5개 화면 전부 스크린샷 확인 — 검색/필터/실제 PDF 업로드/검증 카드 수정→해제까지 실제 상호작용으로 검증, 콘솔 에러 0건. (사소한 버그 1건 발견 즉시 수정: 업로드 로그 창에 placeholder 문구가 안 지워지고 첫 로그 줄과 이어붙던 것.) chromium-cli 등 프로젝트 전용 실행 스킬은 없었음 — 다음에 유사 작업 시 `/run-skill-generator`로 이번 설치 과정을 스킬화하는 것을 권장.
+- 2026-08-17 (Claude): **Phase 8 완료 — Phase 0~8 전부 완료.** `run.bat`(Windows 더블클릭 실행, 최초 실행 시 venv/패키지/한국어 OCR 데이터 자동 준비 + 서버 기동 + 브라우저 자동 오픈), README.md 전면 정리(빠른 시작/수동 설치/사용 방법/폴더 구조/테스트 절 추가). **주의**: 배치 파일에 한글 안내문을 넣었더니 `chcp 65001`을 넣어도 cmd.exe가 여전히 시스템 코드페이지로 파싱해 깨진 토큰을 명령어로 오인하는 에러가 줄줄이 뜸(서버 자체는 정상 기동하지만 고장난 것처럼 보임) → 영문 메시지로 전량 교체해 해결, PowerShell로 두 번 재구동해 HTTP 200 확인. 이걸로 계획서의 모든 단계가 끝났습니다. 남은 건 각 Phase 로그에 적어둔 "낮은 우선순위" 항목들(성장등급 한글 인식 미검증, 흑자전환/적자전환 텍스트 처리, EW등급 잔여 오인식 1건 등)과 나머지 PDF들을 실제로 하나씩 업로드해보는 정도 — 전부 선택 사항이고, 핵심 파이프라인(PDF 업로드→파싱→OCR→저장→엑셀→대시보드→검증)은 실사용 가능한 상태.
