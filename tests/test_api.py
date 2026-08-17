@@ -1,12 +1,17 @@
 """API 레이어 테스트. storage.DATA_DIR을 tmp_path로 바꿔치기해서 실제 data/ 폴더를 건드리지 않는다."""
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend import storage
 from backend.app import app
+from backend.excel import generator as excel_generator
 from backend.models import Company, DiagnosisRatings, IndustryRank, ValidationIssue
+from backend.routers import upload as upload_router
+
+SAMPLE_PDF = Path(__file__).parent / "sample_pdfs" / "1_옥산농원.pdf"
 
 
 def _sample_company(**overrides) -> Company:
@@ -29,6 +34,8 @@ def _sample_company(**overrides) -> Company:
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(upload_router, "UPLOADS_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(excel_generator, "OUTPUT_DIR", tmp_path / "outputs")
     return TestClient(app)
 
 
@@ -147,3 +154,29 @@ def test_dashboard_summary(client):
     assert body["by_industry"] == {"양계업": 1, "농업법인": 1}
     assert body["by_credit_grade_band"] == {"BB": 1, "CCC 이하": 1}  # bb+ -> BB, ccc -> CCC 이하
     assert body["parsing_success_rate"] == 50.0
+
+
+def test_upload_rejects_non_pdf(client):
+    res = client.post("/api/upload", files={"file": ("readme.txt", b"hello", "text/plain")})
+    assert res.status_code == 400
+
+
+def test_upload_corrupt_pdf_returns_clean_422_not_a_crash(client):
+    res = client.post("/api/upload", files={"file": ("broken.pdf", b"not a real pdf", "application/pdf")})
+    assert res.status_code == 422
+    assert "detail" in res.json()
+
+
+@pytest.mark.skipif(not SAMPLE_PDF.exists(), reason="샘플 PDF 없음")
+def test_upload_real_pdf_end_to_end(client):
+    with open(SAMPLE_PDF, "rb") as f:
+        res = client.post("/api/upload", files={"file": (SAMPLE_PDF.name, f, "application/pdf")})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["business_no"] == "412-93-13689"
+    assert body["company_name"] == "옥산농원"
+
+    # 목록/상세/엑셀 다운로드까지 실제로 이어지는지 확인
+    assert client.get("/api/companies/412-93-13689").status_code == 200
+    excel_res = client.get("/api/companies/412-93-13689/excel")
+    assert excel_res.status_code == 200
