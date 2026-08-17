@@ -30,6 +30,12 @@ def _path_for(business_no: str) -> Path:
 def _build_issues(parsed: ParsedCompany, grades: GradeResult) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
 
+    for error in parsed.parse_errors:
+        issues.append(ValidationIssue(
+            type="missing_field", field=None,
+            message=f"일부 항목 파싱 중 오류가 발생해 건너뛰었습니다 ({error}). 원본 PDF에서 직접 확인하세요.",
+        ))
+
     for key in parsed.missing_fields:
         label = _FIELD_LABELS_KO.get(key, key)
         issues.append(ValidationIssue(

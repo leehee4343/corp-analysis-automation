@@ -62,6 +62,23 @@ def test_peer_comparison(parsed):
     assert parsed.peer_comparison["상위25%"]["매출액"] == 9968
 
 
+def test_section_failure_does_not_abort_whole_parse(monkeypatch):
+    """한 섹션 파싱이 예외를 던져도 나머지 필드는 그대로 추출되어야 한다
+    (사용자 버그 리포트 대응 — 부분 실패 시 통째로 실패시키지 않기로 함, PLAN.md 참고)."""
+    from backend.parser import pdf_parser
+
+    def _boom(*a, **kw):
+        raise IndexError("의도적으로 발생시킨 테스트용 오류")
+
+    monkeypatch.setattr(pdf_parser, "parse_industry_rank", _boom)
+    result = pdf_parser.parse_pdf(str(SAMPLE))
+
+    assert result.company_name == "옥산농원"  # 다른 섹션은 정상 추출
+    assert result.balance_summary  # 다른 섹션은 정상 추출
+    assert result.industry_rank == {}  # 실패한 섹션만 빈 값
+    assert any("업계순위" in e for e in result.parse_errors)
+
+
 def test_grade_ocr():
     """Tesseract-OCR 미설치 환경에서는 스킵 (README.md 설치 안내 참고)."""
     try:

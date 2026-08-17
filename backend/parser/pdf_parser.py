@@ -192,6 +192,7 @@ class ParsedCompany:
     peer_comparison: dict = field(default_factory=dict)
     cross_check_mismatch: list[str] = field(default_factory=list)
     missing_fields: list[str] = field(default_factory=list)
+    parse_errors: list[str] = field(default_factory=list)
     report_query_datetime: str | None = None
     evaluation_date: str | None = None
     settlement_date: str | None = None
@@ -199,52 +200,69 @@ class ParsedCompany:
     page_count: int = 0
 
 
+def _safe(errors: list[str], label: str, fn):
+    """섹션 하나가 실패해도 문서 전체 파싱을 중단시키지 않는다 — 실패한 섹션은
+    빈 결과로 두고 사유를 parse_errors에 남겨 검증 대기열에서 보이게 한다."""
+    try:
+        return fn()
+    except Exception as e:
+        errors.append(f"{label}: {type(e).__name__}: {e}")
+        return None
+
+
 def parse_pdf(path: str) -> ParsedCompany:
-    doc = fitz.open(path)
-    result = ParsedCompany(source_pdf=path, page_count=doc.page_count)
+    doc = fitz.open(path)  # 파일 자체를 못 열면(진짜 PDF가 아님) 여기서만 그대로 실패시킨다.
+    try:
+        result = ParsedCompany(source_pdf=path, page_count=doc.page_count)
+        errors = result.parse_errors
 
-    cover = parse_cover_page(_page_lines(doc[0])) if doc.page_count > 0 else {}
-    detail_lines = _page_lines(doc[1]) if doc.page_count > 1 else []
-    detail = parse_basic_info(detail_lines)
+        cover = _safe(errors, "표지 파싱", lambda: parse_cover_page(_page_lines(doc[0])) if doc.page_count > 0 else {}) or {}
+        detail = _safe(errors, "상세정보 파싱", lambda: parse_basic_info(_page_lines(doc[1])) if doc.page_count > 1 else {}) or {}
 
-    for key in ("company_name", "business_no", "representative"):
-        cover_val, detail_val = cover.get(key), detail.get(key)
-        if cover_val and detail_val and cover_val != detail_val:
-            result.cross_check_mismatch.append(key)
-    merged = {**cover, **detail}  # 상세 페이지 값을 우선
-    result.business_no = merged.get("business_no")
-    result.company_name = merged.get("company_name")
-    result.representative = merged.get("representative")
-    result.address = detail.get("address")
-    result.founded_date = detail.get("founded_date")
-    result.industry_code = detail.get("industry_code")
-    result.industry_name = detail.get("industry_name")
-    result.company_type = detail.get("company_type")
-    result.company_size = detail.get("company_size")
+        for key in ("company_name", "business_no", "representative"):
+            cover_val, detail_val = cover.get(key), detail.get(key)
+            if cover_val and detail_val and cover_val != detail_val:
+                result.cross_check_mismatch.append(key)
+        merged = {**cover, **detail}  # 상세 페이지 값을 우선
+        result.business_no = merged.get("business_no")
+        result.company_name = merged.get("company_name")
+        result.representative = merged.get("representative")
+        result.address = detail.get("address")
+        result.founded_date = detail.get("founded_date")
+        result.industry_code = detail.get("industry_code")
+        result.industry_name = detail.get("industry_name")
+        result.company_type = detail.get("company_type")
+        result.company_size = detail.get("company_size")
 
-    # 섹션 페이지 번호는 문서마다 다르다 (예: 개인사업자 31p본은 업계순위가 10p,
-    # 법인 36p본은 13p) — 고정 페이지 인덱스 대신 전체 문서를 한 줄 리스트로 이어붙여
-    # 헤더 라벨을 검색한다. (PLAN.md Phase 2 로그 참고)
-    all_lines = [line for page in doc for line in _page_lines(page)]
+        # 섹션 페이지 번호는 문서마다 다르다 (예: 개인사업자 31p본은 업계순위가 10p,
+        # 법인 36p본은 13p) — 고정 페이지 인덱스 대신 전체 문서를 한 줄 리스트로 이어붙여
+        # 헤더 라벨을 검색한다. (PLAN.md Phase 2 로그 참고)
+        all_lines = _safe(errors, "전체 텍스트 추출", lambda: [line for page in doc for line in _page_lines(page)]) or []
 
-    result.balance_summary = parse_yearly_table(all_lines, L.BALANCE_SUMMARY_HEADER, L.BALANCE_SUMMARY_FIELDS)
-    result.income_summary = parse_yearly_table(all_lines, L.INCOME_SUMMARY_HEADER, L.INCOME_SUMMARY_FIELDS)
-    result.ratio_summary = parse_yearly_table(all_lines, L.RATIO_SUMMARY_HEADER, L.RATIO_SUMMARY_FIELDS)
-    result.industry_rank = parse_industry_rank(all_lines, result.business_no or "")
-    result.peer_comparison = parse_peer_comparison(all_lines)
+        result.balance_summary = _safe(errors, "재무상태표",
+            lambda: parse_yearly_table(all_lines, L.BALANCE_SUMMARY_HEADER, L.BALANCE_SUMMARY_FIELDS)) or {}
+        result.income_summary = _safe(errors, "손익계산서",
+            lambda: parse_yearly_table(all_lines, L.INCOME_SUMMARY_HEADER, L.INCOME_SUMMARY_FIELDS)) or {}
+        result.ratio_summary = _safe(errors, "재무비율",
+            lambda: parse_yearly_table(all_lines, L.RATIO_SUMMARY_HEADER, L.RATIO_SUMMARY_FIELDS)) or {}
+        result.industry_rank = _safe(errors, "업계순위",
+            lambda: parse_industry_rank(all_lines, result.business_no or "")) or {}
+        result.peer_comparison = _safe(errors, "동종업계비교",
+            lambda: parse_peer_comparison(all_lines)) or {}
 
-    full_text = "\n".join(page.get_text() for page in doc)
-    result.diagnosis = parse_diagnosis(full_text)
+        full_text = _safe(errors, "재무진단 텍스트 추출", lambda: "\n".join(page.get_text() for page in doc)) or ""
+        result.diagnosis = _safe(errors, "재무진단", lambda: parse_diagnosis(full_text)) or {}
 
-    if m := L.REPORT_QUERY_DATETIME_RE.search(full_text):
-        result.report_query_datetime = m.group(1)
-    if m := L.EVALUATION_DATE_RE.search(full_text):
-        result.evaluation_date = m.group(1)
-    if m := L.SETTLEMENT_DATE_RE.search(full_text):
-        result.settlement_date = m.group(1)
+        if m := L.REPORT_QUERY_DATETIME_RE.search(full_text):
+            result.report_query_datetime = m.group(1)
+        if m := L.EVALUATION_DATE_RE.search(full_text):
+            result.evaluation_date = m.group(1)
+        if m := L.SETTLEMENT_DATE_RE.search(full_text):
+            result.settlement_date = m.group(1)
 
-    required = ["business_no", "company_name", "representative", "address"]
-    result.missing_fields = [f for f in required if not getattr(result, f)]
+        required = ["business_no", "company_name", "representative", "address"]
+        result.missing_fields = [f for f in required if not getattr(result, f)]
 
-    doc.close()
-    return result
+        return result
+    finally:
+        doc.close()

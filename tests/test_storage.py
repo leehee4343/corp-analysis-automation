@@ -58,6 +58,17 @@ def test_reupload_with_different_report_date_flagged_as_duplicate(tmp_path, monk
     assert any(i.type == "duplicate_suspect" for i in second.issues)
 
 
+def test_parse_error_creates_visible_issue_but_company_still_registers(tmp_path, monkeypatch):
+    """섹션 하나가 파싱 중 예외를 던져도(부분 실패) 회사 자체는 등록되고, 실패한 부분만
+    검증 대기열에 뜬다 — 사용자 버그 리포트 대응(PLAN.md 참고)."""
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    parsed = _sample_parsed(parse_errors=["업계순위: IndexError: 의도적으로 발생시킨 테스트용 오류"])
+    company = storage.build_company(parsed)
+    assert company.company_name == "옥산농원"  # 회사는 정상 등록됨
+    assert company.status == "needs_review"
+    assert any("업계순위" in i.message for i in company.issues)
+
+
 def test_list_companies_and_issues(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
     storage.save_company(storage.build_company(_sample_parsed()))
