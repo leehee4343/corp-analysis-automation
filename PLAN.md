@@ -116,14 +116,16 @@
 | 동종업계 비교 | 11 | `동종업계내경영규모비교` 표 | 목업 "업종 평균/상위25%" 출처 |
 
 ### Phase 2 — PDF 파싱 엔진
-- [ ] PyMuPDF 텍스트 추출 모듈 (`backend/parser/pdf_parser.py`)
-- [ ] 라벨 기반 기본정보 필드 매칭 (표지+상세 교차검증 포함)
-- [ ] 재무상태표·손익계산서 3개년 순차 텍스트 파싱 (라벨→N개 숫자 토큰 매칭, 결측 `-` 처리)
-- [ ] 게이지 이미지 OCR 모듈 (`backend/parser/grade_ocr.py`, 신용등급/EW등급/성장등급)
-- [ ] 재무진단 5축 등급 추출 (`...함` 패턴 정규식)
-- [ ] 파싱 실패/누락 필드 감지 → 검증 대기열 후보로 마킹
-- [ ] `tests/sample_pdfs/1_옥산농원.pdf` 기준 파싱 정확도 테스트 (기대값은 기존 목업 상세페이지 하드코딩 값과 대조 — 이미 일치 확인됨)
-- [ ] 구조가 다를 수 있는 샘플(현금흐름표 등 결측 섹션 있는 파일) 추가 테스트
+- [x] PyMuPDF 텍스트 추출 모듈 (`backend/parser/pdf_parser.py`) (Claude, 2026-08-17)
+- [x] 라벨 기반 기본정보 필드 매칭 (표지+상세 교차검증 포함) (Claude, 2026-08-17)
+- [x] 재무상태표·손익계산서·재무비율 3개년 순차 텍스트 파싱 (라벨→N개 숫자 토큰 매칭, 결측 `-` 처리) (Claude, 2026-08-17)
+- [x] 업계순위(10p)·동종업계 비교(11p) 파싱 (Claude, 2026-08-17)
+- [x] 게이지 이미지 OCR 모듈 작성 (`backend/parser/grade_ocr.py`, 신용등급/EW등급/성장등급) — **코드는 작성 완료, 이 머신엔 Tesseract-OCR 미설치라 실행 검증은 아직 못함** (Claude, 2026-08-17)
+- [x] 재무진단 5축 등급 추출 (`...함` 패턴 정규식) (Claude, 2026-08-17)
+- [x] 파싱 실패/누락 필드 기초 감지 (`missing_fields`, `cross_check_mismatch`) — 검증 대기열 큐 자체는 Phase 3(저장)에서 연결 (Claude, 2026-08-17)
+- [x] `tests/sample_pdfs/1_옥산농원.pdf` 기준 파싱 정확도 테스트 — `tests/test_pdf_parser.py`(pytest) 6개 항목 전부 통과, 목업 상세페이지 하드코딩 값과 100% 일치 확인 (기업명/대표자/주소/업종/재무3개년/재무진단5축/업계순위/동종업계비교) (Claude, 2026-08-17)
+- [ ] 구조가 다를 수 있는 샘플(현금흐름표 등 결측 섹션 있는 파일, 법인 vs 개인사업자, 페이지 수 다른 경우) 추가 테스트 — `PDF/` 폴더의 나머지 64개 중 2~3개로 검증 권장
+- [ ] OCR 모듈 실제 게이지 이미지로 정확도 검증 (Tesseract 설치 후)
 
 ### Phase 3 — 데이터 저장 & 스키마
 - [ ] 회사 데이터 pydantic 모델 확정
@@ -181,3 +183,4 @@
 - 2026-08-17 (Claude): 초기 작업계획 수립. 기술 스택은 목업 코드(pdfplumber/openpyxl 언급)에서 유추한 가정이며 사용자 확정 필요.
 - 2026-08-17 (Claude): 사용자가 기술 스택 확정, Phase 0 진행 승인. git init, 폴더 구조, requirements.txt, README.md, index.html→frontend/ 이동 완료. Phase 1(샘플 PDF 확보)부터는 사용자의 실제 PDF 샘플이 필요.
 - 2026-08-17 (Claude): 사용자가 프로젝트 루트 `PDF/` 폴더에 실제 변환 대상 PDF 65개를 이미 넣어둠(양계업 1개 + 농업회사법인/영농조합법인 다수). "모두 동일한 구조"라는 확인을 받아 `1 옥산농원.pdf` 1개를 기준으로 Phase 1 구조 분석 수행, `tests/sample_pdfs/1_옥산농원.pdf`로 복사. **중요 스택 변경 2건**: (1) pdfplumber → PyMuPDF(fitz) 텍스트 추출 라이브러리 교체(pdfplumber는 이 PDF들의 폰트에서 한글이 전부 깨짐, 근거는 1번 표). (2) 신용등급/EW등급/기업성장등급이 이미지(게이지)로 렌더링되어 있어 OCR(pytesseract+Tesseract-OCR) 단계 신규 추가 — **사용자가 Tesseract-OCR을 시스템에 설치해야 함** (README.md에 안내 추가, 현재 이 머신엔 미설치 확인됨). requirements.txt/venv 갱신 완료(pymupdf, pytesseract 설치·pdfplumber 제거). 상세 필드 매핑표는 Phase 1 섹션 참고.
+- 2026-08-17 (Claude): Phase 2 파서 코드 작성 완료. `backend/parser/{labels,pdf_parser,grade_ocr}.py`. 텍스트 기반 필드(기본정보/재무3개년/재무비율/재무진단5축/업계순위/동종업계비교)는 `tests/test_pdf_parser.py`로 회귀 테스트 작성, 옥산농원 샘플로 6개 테스트 전부 통과 — 목업 상세페이지 하드코딩 값과 100% 일치. 게이지 이미지 OCR(`grade_ocr.py`)은 코드는 작성했으나 Tesseract-OCR 바이너리가 이 머신에 없어 미검증 상태 — **사용자 액션 필요**: Tesseract-OCR 설치(README.md 참고) 후 확인 요청 예정. `venv`에 pytest 추가.
