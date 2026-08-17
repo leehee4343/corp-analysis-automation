@@ -219,24 +219,18 @@ def parse_pdf(path: str) -> ParsedCompany:
     result.company_type = detail.get("company_type")
     result.company_size = detail.get("company_size")
 
-    if doc.page_count > 3:
-        result.balance_summary = parse_yearly_table(
-            _page_lines(doc[3]), L.BALANCE_SUMMARY_HEADER, L.BALANCE_SUMMARY_FIELDS
-        )
-    if doc.page_count > 4:
-        result.income_summary = parse_yearly_table(
-            _page_lines(doc[4]), L.INCOME_SUMMARY_HEADER, L.INCOME_SUMMARY_FIELDS
-        )
-    if doc.page_count > 5:
-        result.ratio_summary = parse_yearly_table(
-            _page_lines(doc[5]), L.RATIO_SUMMARY_HEADER, L.RATIO_SUMMARY_FIELDS
-        )
-    if doc.page_count > 9:
-        result.industry_rank = parse_industry_rank(_page_lines(doc[9]), result.business_no or "")
-    if doc.page_count > 10:
-        result.peer_comparison = parse_peer_comparison(_page_lines(doc[10]))
+    # 섹션 페이지 번호는 문서마다 다르다 (예: 개인사업자 31p본은 업계순위가 10p,
+    # 법인 36p본은 13p) — 고정 페이지 인덱스 대신 전체 문서를 한 줄 리스트로 이어붙여
+    # 헤더 라벨을 검색한다. (PLAN.md Phase 2 로그 참고)
+    all_lines = [line for page in doc for line in _page_lines(page)]
 
-    full_text = "\n".join(page.get_text() for page in doc[27:31]) if doc.page_count > 27 else ""
+    result.balance_summary = parse_yearly_table(all_lines, L.BALANCE_SUMMARY_HEADER, L.BALANCE_SUMMARY_FIELDS)
+    result.income_summary = parse_yearly_table(all_lines, L.INCOME_SUMMARY_HEADER, L.INCOME_SUMMARY_FIELDS)
+    result.ratio_summary = parse_yearly_table(all_lines, L.RATIO_SUMMARY_HEADER, L.RATIO_SUMMARY_FIELDS)
+    result.industry_rank = parse_industry_rank(all_lines, result.business_no or "")
+    result.peer_comparison = parse_peer_comparison(all_lines)
+
+    full_text = "\n".join(page.get_text() for page in doc)
     result.diagnosis = parse_diagnosis(full_text)
 
     required = ["business_no", "company_name", "representative", "address"]
