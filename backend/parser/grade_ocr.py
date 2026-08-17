@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,17 @@ _DARK_BRIGHTNESS_THRESHOLD = 110
 _SATURATION_THRESHOLD = 25
 
 _NO_VALUE_TOKENS = {"?", "", "-"}
+
+# KIS/KODATA 신용등급 표기(예: bb+, bbb-, b0, aaa). 65개 실제 PDF로 배치 테스트해보니
+# 색상 아치 잔여 노이즈 때문에 이 형식에 안 맞는 오인식이 다수 발생 — 형식 검증 후
+# 여러 PSM 모드로 재시도하고, 그래도 안 맞으면 None(=검증 대기열行). (PLAN.md Phase 7 로그 참고)
+_VALID_CREDIT_GRADE_RE = re.compile(r"^(aaa|aa|a|bbb|bb|b|ccc|cc|c|d)[+\-0]?$")
+_CREDIT_GRADE_PSM_CANDIDATES = (6, 7, 8, 11)
+
+# EW등급/기업성장등급(예: 정상, 유보)은 아치 이진화 잔여물이 글자 앞에 붙는 오인식이
+# 있었다(예: "가\n유보" — 실제 값은 "유보"). 가장 긴 한글 연속 구간을 값으로 취급하고,
+# 너무 짧으면(1글자) 노이즈로 보고 버린다.
+_HANGUL_RUN_RE = re.compile(r"[가-힣]+")
 
 # 관리자 권한 없이 설치한 언어 데이터(kor.traineddata)를 쓰기 위해 프로젝트 로컬
 # .tessdata/ 를 우선 사용한다 (setup_tessdata.py로 생성, README.md 참고).
@@ -89,25 +101,37 @@ def _preprocess_gauge(pix: "fitz.Pixmap") -> Image.Image:
 
 
 def _ocr(img: Image.Image, lang: str, psm: int = 6) -> str:
+    """공백만 제거하고 줄바꿈은 남긴다 — 서로 다른 텍스트 조각(노이즈/실제 값)을
+    구분하는 경계로 쓴다 (예: "가\\n유보")."""
     text = pytesseract.image_to_string(img, lang=lang, config=f"--psm {psm}").strip()
     return text.replace(" ", "")
 
 
 def _read_credit_grade(pix: "fitz.Pixmap") -> str | None:
-    """신용등급은 항상 영문+기호 (예: bb+, BBB-, AAA)."""
+    """신용등급은 항상 영문+기호 (예: bb+, BBB-, AAA). 형식에 안 맞으면 여러 PSM으로 재시도."""
     img = _preprocess_gauge(pix)
-    text = _ocr(img, lang="eng")
-    return None if text in _NO_VALUE_TOKENS else text
+    first_pass = _ocr(img, lang="eng", psm=_CREDIT_GRADE_PSM_CANDIDATES[0]).lower()
+    if first_pass in _NO_VALUE_TOKENS:
+        return None
+    for psm in _CREDIT_GRADE_PSM_CANDIDATES:
+        text = _ocr(img, lang="eng", psm=psm).lower()
+        if _VALID_CREDIT_GRADE_RE.match(text):
+            return text
+    return None
 
 
 def _read_korean_grade(pix: "fitz.Pixmap") -> str | None:
-    """EW등급/기업성장등급은 값이 없으면 "?", 있으면 한글 단어(예: 정상, 우수)."""
+    """EW등급/기업성장등급은 값이 없으면 "?", 있으면 한글 단어(예: 정상, 유보)."""
     img = _preprocess_gauge(pix)
     no_value = _ocr(img, lang="eng")
     if no_value in _NO_VALUE_TOKENS:
         return None
     text = _ocr(img, lang="kor")
-    return text if text and text not in _NO_VALUE_TOKENS else None
+    runs = _HANGUL_RUN_RE.findall(text)
+    if not runs:
+        return None
+    longest = max(runs, key=len)
+    return longest if len(longest) >= 2 else None
 
 
 @dataclass

@@ -27,7 +27,7 @@ def _path_for(business_no: str) -> Path:
     return DATA_DIR / f"{business_no}.json"
 
 
-def _build_issues(parsed: ParsedCompany) -> list[ValidationIssue]:
+def _build_issues(parsed: ParsedCompany, grades: GradeResult) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
 
     for key in parsed.missing_fields:
@@ -55,6 +55,12 @@ def _build_issues(parsed: ParsedCompany) -> list[ValidationIssue]:
             message="재무상태표/손익계산서 요약 값을 찾지 못했습니다. 표 구조를 확인하세요.",
         ))
 
+    if not grades.credit_grade:
+        issues.append(ValidationIssue(
+            type="missing_field", field="credit_grade",
+            message="기업신용등급 값을 인식하지 못했습니다 (게이지 이미지 OCR 실패 가능성). 원본 PDF에서 확인하세요.",
+        ))
+
     if parsed.business_no:
         existing = load_company(parsed.business_no)
         if (
@@ -76,6 +82,7 @@ def _build_issues(parsed: ParsedCompany) -> list[ValidationIssue]:
 
 def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> Company:
     grades = grades or GradeResult()
+    issues = _build_issues(parsed, grades)
     return Company(
         business_no=parsed.business_no or "",
         company_name=parsed.company_name or "",
@@ -101,7 +108,7 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
         source_pdf=parsed.source_pdf,
         page_count=parsed.page_count,
         parsed_at=datetime.now(timezone.utc),
-        issues=_build_issues(parsed),
+        issues=issues,
     )
 
 
