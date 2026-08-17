@@ -6,7 +6,7 @@ CRETOP·KODATA 기업종합보고서 PDF를 등록하면 자동으로 파싱 →
 
 ## 빠른 시작 (Windows)
 
-`run.bat`을 더블클릭하세요. 처음 실행할 때 필요한 것들(가상환경, 패키지, 한국어 OCR 데이터)을 자동으로 준비하고, 잠시 후 브라우저가 자동으로 열립니다. 창을 닫으면(또는 그 안에서 Ctrl+C) 서버가 종료됩니다.
+**`프로그램 시작.bat`을 더블클릭하세요.** (`run.bat`도 동일하게 동작하는 같은 실행 파일입니다.) 처음 실행할 때 필요한 것들(가상환경, 패키지, 한국어 OCR 데이터)을 자동으로 준비하고, 잠시 후 브라우저가 자동으로 열립니다. 창을 닫으면(또는 그 안에서 Ctrl+C) 서버가 종료됩니다.
 
 Tesseract-OCR 엔진 자체는 자동 설치되지 않습니다 — 처음 한 번은 아래 "Tesseract-OCR" 절의 1번을 직접 실행해야 합니다.
 
@@ -46,7 +46,8 @@ uvicorn backend.app:app --reload
 ## 폴더 구조
 
 ```
-run.bat              더블클릭 실행용 스크립트 (Windows)
+프로그램 시작.bat    더블클릭 실행용 스크립트 (Windows) — run.bat과 내용 동일(의도적 중복, 아래 참고)
+run.bat              위와 동일한 실행 스크립트
 backend/             FastAPI 백엔드
   app.py               진입점 (프론트엔드 서빙 + API 라우터)
   routers/             API 엔드포인트 (companies, upload, validation)

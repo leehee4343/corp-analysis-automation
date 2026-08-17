@@ -1,7 +1,8 @@
 @echo off
-REM Kept in sync with the Korean-named launcher file in this same folder
-REM (same script, duplicated on purpose for reliability). Update both if
-REM you change the setup/run steps here.
+REM Same launcher as run.bat, duplicated on purpose: calling run.bat from another
+REM .bat file in this folder failed to resolve reliably (this folder's path has
+REM unusual characters), while running this file's own commands directly works.
+REM If you change the setup/run steps here, update run.bat too (and vice versa).
 setlocal
 cd /d "%~dp0"
 
