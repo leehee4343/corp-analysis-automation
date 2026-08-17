@@ -12,6 +12,11 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+### Tesseract-OCR (신용등급 등 이미지 값 인식용, 별도 설치 필요)
+
+기업신용등급/EW등급/기업성장등급이 PDF 안에서 텍스트가 아니라 게이지 이미지로 렌더링되어 있어 OCR이 필요합니다.
+[Tesseract-OCR](https://github.com/UB-Mannheim/tesseract/wiki) 설치 후 한국어 데이터(`kor`)가 포함됐는지 확인하세요. `pytesseract`는 이 바이너리를 감싸는 래퍼일 뿐이라 바이너리를 따로 설치하지 않으면 동작하지 않습니다.
+
 ## 실행
 
 ```bash

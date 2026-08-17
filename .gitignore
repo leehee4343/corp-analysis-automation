@@ -12,6 +12,10 @@ uploads/*
 outputs/*
 !outputs/.gitkeep
 
+# 실제 원본 PDF (용량 크고 민감한 사업자 정보 — git 추적 금지)
+/PDF/
+tests/sample_pdfs/*.pdf
+
 # OS / 에디터
 .DS_Store
 Thumbs.db
