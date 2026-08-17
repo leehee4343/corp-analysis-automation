@@ -138,9 +138,10 @@
 - [x] 실제 PDF 2개로 전체 파이프라인(파싱→OCR→저장) 통합 스모크 테스트 — `data/{사업자번호}.json` 정상 생성 확인 (Claude, 2026-08-17)
 
 ### Phase 4 — 엑셀 자동 생성
-- [ ] openpyxl 템플릿 작성 (기존 CRETOP/KODATA 보고서 양식 참고)
-- [ ] JSON → 엑셀 매핑 함수
-- [ ] `outputs/{기업명}_기업종합보고서.xlsx` 생성 확인
+- [x] openpyxl 워크북 생성 (`backend/excel/generator.py`) — 시트 3개: 요약(기본정보+등급+재무진단5축+업계순위), 재무제표(재무상태표/손익계산서/재무비율 3개년), 업계비교(동종업계 경영규모 비교) (Claude, 2026-08-17)
+- [x] `Company` → 엑셀 매핑 함수 (`generate_excel`) (Claude, 2026-08-17)
+- [x] `outputs/{기업명}_기업종합보고서.xlsx` 생성 확인 — 실제 저장된 회사 2건으로 생성 후 셀 값 검증 완료, 파일명 특수문자 무해화(`_sanitize_filename`) 처리 (Claude, 2026-08-17)
+- [x] `tests/test_excel_generator.py` 4종 (총 21개 테스트 전부 통과) (Claude, 2026-08-17)
 
 ### Phase 5 — 백엔드 API
 - [ ] FastAPI 앱/라우터 골격
@@ -192,3 +193,4 @@
 - 2026-08-17 (Claude): 사용자 승인 하에 Tesseract-OCR을 winget(`UB-Mannheim.TesseractOCR`)으로 설치. 관리자 권한이 없어 설치 폴더(`C:\Program Files\Tesseract-OCR\tessdata`)에 한국어 언어 데이터(`kor.traineddata`)를 쓸 수 없었음 → 대신 프로젝트 로컬 `.tessdata/`에 내려받아 `TESSDATA_PREFIX`로 사용하는 방식으로 우회(`setup_tessdata.py` 신규, `.gitignore`에 `/.tessdata/` 추가, 용량 커서 git 미추적). 게이지 이미지를 그대로 OCR하면 색깔 아치가 섞여 오인식이 심해(`fbb+`, `asvan` 등) 색상 기반 이진화(무채색+어두운 픽셀만 검정으로 남김) 전처리를 추가, `bb+`/`정상`/`None`(값없음) 전부 정확히 인식하도록 개선. `tests/test_pdf_parser.py`에 `test_grade_ocr` 추가(Tesseract 없으면 스킵), 총 7개 테스트 전부 통과.
 - 2026-08-17 (Claude): 사용자 요청으로 구조가 다른 두 번째 샘플(`10 (주)삼진 지.에프.pdf`, 36페이지, 일반법인)로 검증 진행. **버그 발견**: 업계순위(10p→13p)/동종업계비교(11p→14p)/재무진단(28~31p→34~36p)가 옥산농원(31p, 개인사업자)과 다른 페이지에 위치해 고정 페이지 인덱스로 찾던 기존 구현이 전부 빈 값을 반환함. **수정**: `parse_pdf`가 문서 전체 페이지를 하나의 줄 리스트로 이어붙여(`all_lines`) 헤더 텍스트를 검색하도록 변경 — 페이지 위치와 무관하게 동작. 요약재무3표(4/5/6p)는 두 샘플 모두 같은 위치라 안정적으로 확인됨. `tests/test_pdf_parser_corp.py` 신규 추가(페이지-무관성 회귀 테스트), 총 12개 테스트 전부 통과. **알려진 제한사항 발견**: 순이익이 흑자/적자를 오가면(예: 578→-29→580) "순이익증가율"이 숫자 대신 "흑자전환"/"적자전환" 텍스트로 표기되어 현재 파서는 해당 필드를 조용히 건너뜀(에러는 아님) — 대시보드가 이 필드를 안 쓰므로 우선순위 낮음, 추후 Excel에 전체 재무비율을 담을 때 처리 필요.
 - 2026-08-17 (Claude): Phase 3 완료. `backend/models.py`(pydantic `Company`/`DiagnosisRatings`/`IndustryRank`/`ValidationIssue`), `backend/storage.py`(저장/조회/이슈판정) 작성. 저장 키를 목업 로그의 회사명(`data/옥산농원.json`) 대신 사업자번호로 변경 — 특수문자·동명 회사 위험 회피(의도적 이탈, 목업 로그 문구와 다름). 중복 의심 판정용으로 `report_query_datetime`/`evaluation_date`/`settlement_date` 파서에 추가. `tests/test_storage.py` 5개 신규(총 17개 테스트 전부 통과), 실제 PDF 2개로 파싱→OCR→저장 전체 파이프라인 통합 스모크 테스트도 확인(`data/{사업자번호}.json` 정상 생성).
+- 2026-08-17 (Claude): Phase 4 완료. `backend/excel/generator.py` — 요약/재무제표/업계비교 3개 시트 워크북 생성. 엑셀 파일명은 (저장 키와 달리) 목업 로그 문구 그대로 회사명 사용(`outputs/{기업명}_기업종합보고서.xlsx`) — 다운로드용 파일명이라 사업자번호보다 회사명이 사용자 친화적이라고 판단, Windows 금지문자만 무해화 처리. 실제 저장된 회사 데이터로 생성해 openpyxl로 다시 읽어 셀 값 검증 완료. `tests/test_excel_generator.py` 4개 신규(총 21개 테스트 전부 통과).
