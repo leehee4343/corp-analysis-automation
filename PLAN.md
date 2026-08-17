@@ -155,11 +155,13 @@
 - [x] `tests/test_api.py` 8종(총 29개 테스트 통과) + 실제 PDF로 `POST /api/upload`→전체 API 흐름 수동 스모크 테스트 완료 (Claude, 2026-08-17)
 
 ### Phase 6 — 프론트엔드 실데이터 연동
-- [ ] 대시보드 하드코딩 데이터 → `fetch()` API 연동
-- [ ] 기업 목록 페이지 검색/필터/페이지네이션 실연동
-- [ ] 업로드 드롭존 → 실제 파일 업로드 + 진행 상태 표시
-- [ ] 처리 로그 콘솔 → 백엔드 로그 폴링/스트리밍
-- [ ] 검증 대기열 화면 → issues API 연동 + 수동 수정 폼
+- [x] 대시보드 하드코딩 데이터 → `fetch()` API 연동 (KPI, 업종별 바차트, 신용등급 도넛, 최근 등록 기업 테이블 전부 `/api/dashboard/summary` 기반) (Claude, 2026-08-17)
+- [x] 기업 목록 페이지 검색/필터(업종·신용등급구간·매출액구간)/페이지네이션 실연동, 전체 엑셀 내보내기 (Claude, 2026-08-17)
+- [x] 업로드 드롭존 → 실제 드래그앤드롭/파일선택 업로드(`POST /api/upload`) + 큐 진행 상태 + 실시간 처리 로그 + 등록 결과 미리보기 (Claude, 2026-08-17)
+- [x] 기업 상세 페이지 완전 동적화 — 이전엔 옥산농원 하드코딩, 이제 어떤 회사든 `viewDetail(business_no)`로 조회. KPI 전년대비 증감률(매출/영업이익/순이익은 상대%, 부채비율은 %p 차이로 구분), 재무진단 5링(우수/양호/보통/미흡/취약 색상 매핑 CSS 추가), 3개년 추이·업종비교 막대, 재무상태표 표, 엑셀 다운로드·원본 PDF 보기 버튼(`GET /api/companies/{id}/source-pdf` 신규) (Claude, 2026-08-17)
+- [x] 검증 대기열 화면 → `/api/issues` 연동, 이슈 유형별 카드(필드누락/형식의심/중복의심), "직접 수정"은 `prompt()` 기반 인라인 수정 → PATCH → 이슈 자동 해제 (Claude, 2026-08-17)
+- [x] 사이드바 "기업 상세" 항목을 처음 조회 전까지 숨김 처리 후 조회한 회사명으로 동적 갱신, "데이터 검증" 배지 실시간 갱신 (Claude, 2026-08-17)
+- [x] **실제 브라우저로 전 페이지 동작 검증** (Playwright 설치 후 headless Chromium으로 uvicorn 서버 구동 → 대시보드/목록/검색/상세/업로드(실제 PDF)/검증(이슈 발생→직접수정→해제) 전체 플로우 스크린샷 + 콘솔 에러 확인, 에러 0건) (Claude, 2026-08-17)
 
 ### Phase 7 — 테스트 & 품질 검증
 - [ ] 실제 PDF로 End-to-End 테스트 (업로드→파싱→엑셀→대시보드)
@@ -196,3 +198,5 @@
 - 2026-08-17 (Claude): Phase 3 완료. `backend/models.py`(pydantic `Company`/`DiagnosisRatings`/`IndustryRank`/`ValidationIssue`), `backend/storage.py`(저장/조회/이슈판정) 작성. 저장 키를 목업 로그의 회사명(`data/옥산농원.json`) 대신 사업자번호로 변경 — 특수문자·동명 회사 위험 회피(의도적 이탈, 목업 로그 문구와 다름). 중복 의심 판정용으로 `report_query_datetime`/`evaluation_date`/`settlement_date` 파서에 추가. `tests/test_storage.py` 5개 신규(총 17개 테스트 전부 통과), 실제 PDF 2개로 파싱→OCR→저장 전체 파이프라인 통합 스모크 테스트도 확인(`data/{사업자번호}.json` 정상 생성).
 - 2026-08-17 (Claude): Phase 4 완료. `backend/excel/generator.py` — 요약/재무제표/업계비교 3개 시트 워크북 생성. 엑셀 파일명은 (저장 키와 달리) 목업 로그 문구 그대로 회사명 사용(`outputs/{기업명}_기업종합보고서.xlsx`) — 다운로드용 파일명이라 사업자번호보다 회사명이 사용자 친화적이라고 판단, Windows 금지문자만 무해화 처리. 실제 저장된 회사 데이터로 생성해 openpyxl로 다시 읽어 셀 값 검증 완료. `tests/test_excel_generator.py` 4개 신규(총 21개 테스트 전부 통과).
 - 2026-08-17 (Claude): Phase 5 완료. `backend/app.py` + `backend/routers/{companies,upload,validation}.py`. `models.py`에 `CompanyUpdate`/`CompanyListItem`/`CompanyList`/`IssueEntry`/`DashboardSummary` 추가, `storage.py`에 `update_company`(PATCH용, 수정 필드와 연관된 이슈 자동 제거)/`latest_revenue`/`grade_band`(대시보드 신용등급 구간, 목업 도넛 범례 A~BBB/BB/B/CCC 이하와 동일) 추가. `httpx` 추가(FastAPI TestClient용). `tests/test_api.py` 8개(총 29개 테스트 통과) + `TestClient`로 실제 PDF 업로드→전체 API 흐름(루트 HTML 서빙 포함) 수동 스모크 테스트 완료. 다음 Phase 6는 `frontend/index.html`의 하드코딩 데이터를 이 API들로 교체하는 작업.
+- 2026-08-17 (Claude): Phase 6 착수 전 API 보강 — `GET /api/companies`에 `grade_band`/`revenue_min`/`revenue_max` 필터, `GET /api/companies/{id}/source-pdf`(원본 PDF 보기 버튼용), `CompanyListItem`에 `operating_profit_latest`/`diagnosis_summary`(5축 중 최저 등급, `storage.overall_diagnosis`) 추가. 테스트 32개로 증가.
+- 2026-08-17 (Claude): **Phase 6 완료.** `frontend/index.html`의 `<script>`를 전면 재작성 — 대시보드/목록/업로드/상세/검증 5개 화면 전부 하드코딩 데이터 대신 `/api/*` 호출로 렌더링. 사업자번호 기반 라우팅(`viewDetail(business_no)`)으로 상세 페이지를 임의 회사에 대해 동작하도록 일반화(기존엔 옥산농원 고정). CSS에 재무진단 등급별 링 색상(`.diag-ring.fair/.poor/.na`) 추가. 검증 페이지는 이슈 유형별 카드 + `prompt()` 인라인 수정 → PATCH로 이슈 해제. 실행/검증: Playwright(Chromium)를 이 머신에 새로 설치(`playwright install chromium`, ~300MB)해 실제 `uvicorn backend.app:app`을 띄우고 5개 화면 전부 스크린샷 확인 — 검색/필터/실제 PDF 업로드/검증 카드 수정→해제까지 실제 상호작용으로 검증, 콘솔 에러 0건. (사소한 버그 1건 발견 즉시 수정: 업로드 로그 창에 placeholder 문구가 안 지워지고 첫 로그 줄과 이어붙던 것.) chromium-cli 등 프로젝트 전용 실행 스킬은 없었음 — 다음에 유사 작업 시 `/run-skill-generator`로 이번 설치 과정을 스킬화하는 것을 권장.
