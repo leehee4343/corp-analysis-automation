@@ -144,14 +144,15 @@
 - [x] `tests/test_excel_generator.py` 4종 (총 21개 테스트 전부 통과) (Claude, 2026-08-17)
 
 ### Phase 5 — 백엔드 API
-- [ ] FastAPI 앱/라우터 골격
-- [ ] `POST /upload` (PDF 업로드 → 파싱 → JSON 저장 → 엑셀 생성)
-- [ ] `GET /companies` (검색/필터/페이지네이션)
-- [ ] `GET /companies/{id}` (상세)
-- [ ] `GET /companies/{id}/excel` (다운로드)
-- [ ] `GET /issues` (검증 대기열)
-- [ ] `PATCH /companies/{id}` (수동 수정)
-- [ ] `GET /dashboard/summary` (KPI·업종별·등급별 통계)
+- [x] FastAPI 앱/라우터 골격 (`backend/app.py`, `backend/routers/{companies,upload,validation}.py`) — `/`는 `frontend/index.html`을 그대로 서빙 (Claude, 2026-08-17)
+- [x] `POST /api/upload` (PDF 업로드 → 파싱 → OCR → JSON 저장 → 엑셀 생성, OCR 실패해도 텍스트 데이터는 등록되도록 방어) (Claude, 2026-08-17)
+- [x] `GET /api/companies` (검색 `q`/업종 필터/페이지네이션) (Claude, 2026-08-17)
+- [x] `GET /api/companies/{business_no}` (상세) (Claude, 2026-08-17)
+- [x] `GET /api/companies/{business_no}/excel` (다운로드, 요청 시 즉석 재생성) (Claude, 2026-08-17)
+- [x] `GET /api/issues` (검증 대기열) (Claude, 2026-08-17)
+- [x] `PATCH /api/companies/{business_no}` (수동 수정 — 수정한 필드와 연관된 이슈 자동 해제) (Claude, 2026-08-17)
+- [x] `GET /api/dashboard/summary` (등록수/파싱성공률/대기이슈/업종별/신용등급 구간별/최근등록) (Claude, 2026-08-17)
+- [x] `tests/test_api.py` 8종(총 29개 테스트 통과) + 실제 PDF로 `POST /api/upload`→전체 API 흐름 수동 스모크 테스트 완료 (Claude, 2026-08-17)
 
 ### Phase 6 — 프론트엔드 실데이터 연동
 - [ ] 대시보드 하드코딩 데이터 → `fetch()` API 연동
@@ -194,3 +195,4 @@
 - 2026-08-17 (Claude): 사용자 요청으로 구조가 다른 두 번째 샘플(`10 (주)삼진 지.에프.pdf`, 36페이지, 일반법인)로 검증 진행. **버그 발견**: 업계순위(10p→13p)/동종업계비교(11p→14p)/재무진단(28~31p→34~36p)가 옥산농원(31p, 개인사업자)과 다른 페이지에 위치해 고정 페이지 인덱스로 찾던 기존 구현이 전부 빈 값을 반환함. **수정**: `parse_pdf`가 문서 전체 페이지를 하나의 줄 리스트로 이어붙여(`all_lines`) 헤더 텍스트를 검색하도록 변경 — 페이지 위치와 무관하게 동작. 요약재무3표(4/5/6p)는 두 샘플 모두 같은 위치라 안정적으로 확인됨. `tests/test_pdf_parser_corp.py` 신규 추가(페이지-무관성 회귀 테스트), 총 12개 테스트 전부 통과. **알려진 제한사항 발견**: 순이익이 흑자/적자를 오가면(예: 578→-29→580) "순이익증가율"이 숫자 대신 "흑자전환"/"적자전환" 텍스트로 표기되어 현재 파서는 해당 필드를 조용히 건너뜀(에러는 아님) — 대시보드가 이 필드를 안 쓰므로 우선순위 낮음, 추후 Excel에 전체 재무비율을 담을 때 처리 필요.
 - 2026-08-17 (Claude): Phase 3 완료. `backend/models.py`(pydantic `Company`/`DiagnosisRatings`/`IndustryRank`/`ValidationIssue`), `backend/storage.py`(저장/조회/이슈판정) 작성. 저장 키를 목업 로그의 회사명(`data/옥산농원.json`) 대신 사업자번호로 변경 — 특수문자·동명 회사 위험 회피(의도적 이탈, 목업 로그 문구와 다름). 중복 의심 판정용으로 `report_query_datetime`/`evaluation_date`/`settlement_date` 파서에 추가. `tests/test_storage.py` 5개 신규(총 17개 테스트 전부 통과), 실제 PDF 2개로 파싱→OCR→저장 전체 파이프라인 통합 스모크 테스트도 확인(`data/{사업자번호}.json` 정상 생성).
 - 2026-08-17 (Claude): Phase 4 완료. `backend/excel/generator.py` — 요약/재무제표/업계비교 3개 시트 워크북 생성. 엑셀 파일명은 (저장 키와 달리) 목업 로그 문구 그대로 회사명 사용(`outputs/{기업명}_기업종합보고서.xlsx`) — 다운로드용 파일명이라 사업자번호보다 회사명이 사용자 친화적이라고 판단, Windows 금지문자만 무해화 처리. 실제 저장된 회사 데이터로 생성해 openpyxl로 다시 읽어 셀 값 검증 완료. `tests/test_excel_generator.py` 4개 신규(총 21개 테스트 전부 통과).
+- 2026-08-17 (Claude): Phase 5 완료. `backend/app.py` + `backend/routers/{companies,upload,validation}.py`. `models.py`에 `CompanyUpdate`/`CompanyListItem`/`CompanyList`/`IssueEntry`/`DashboardSummary` 추가, `storage.py`에 `update_company`(PATCH용, 수정 필드와 연관된 이슈 자동 제거)/`latest_revenue`/`grade_band`(대시보드 신용등급 구간, 목업 도넛 범례 A~BBB/BB/B/CCC 이하와 동일) 추가. `httpx` 추가(FastAPI TestClient용). `tests/test_api.py` 8개(총 29개 테스트 통과) + `TestClient`로 실제 PDF 업로드→전체 API 흐름(루트 HTML 서빙 포함) 수동 스모크 테스트 완료. 다음 Phase 6는 `frontend/index.html`의 하드코딩 데이터를 이 API들로 교체하는 작업.

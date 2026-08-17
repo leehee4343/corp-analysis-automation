@@ -1,0 +1,117 @@
+"""API 레이어 테스트. storage.DATA_DIR을 tmp_path로 바꿔치기해서 실제 data/ 폴더를 건드리지 않는다."""
+from datetime import datetime, timezone
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend import storage
+from backend.app import app
+from backend.models import Company, DiagnosisRatings, IndustryRank, ValidationIssue
+
+
+def _sample_company(**overrides) -> Company:
+    base = dict(
+        business_no="412-93-13689",
+        company_name="옥산농원",
+        representative="김종원",
+        address="광주 나주시 봉황면 옥산유곡길 48-19",
+        industry_name="양계업",
+        credit_grade="bb+",
+        income_summary={"매출액": {"2023": 7154, "2024": 7241, "2025": 8307}},
+        diagnosis=DiagnosisRatings(growth="양호"),
+        industry_rank=IndustryRank(rank=74, sample_size=79),
+        parsed_at=datetime.now(timezone.utc),
+    )
+    base.update(overrides)
+    return Company(**base)
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    return TestClient(app)
+
+
+def test_list_companies_empty(client):
+    res = client.get("/api/companies")
+    assert res.status_code == 200
+    assert res.json() == {"total": 0, "page": 1, "page_size": 20, "items": []}
+
+
+def test_list_and_get_company(client):
+    storage.save_company(_sample_company())
+
+    res = client.get("/api/companies")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["company_name"] == "옥산농원"
+    assert body["items"][0]["revenue_latest"] == 8307
+
+    res = client.get("/api/companies/412-93-13689")
+    assert res.status_code == 200
+    assert res.json()["representative"] == "김종원"
+
+
+def test_get_company_not_found(client):
+    res = client.get("/api/companies/000-00-00000")
+    assert res.status_code == 404
+
+
+def test_search_by_name(client):
+    storage.save_company(_sample_company())
+    storage.save_company(_sample_company(business_no="303-81-54893", company_name="농업회사법인 동일농장"))
+
+    res = client.get("/api/companies", params={"q": "옥산"})
+    assert res.json()["total"] == 1
+    assert res.json()["items"][0]["company_name"] == "옥산농원"
+
+
+def test_download_excel(client):
+    storage.save_company(_sample_company())
+    res = client.get("/api/companies/412-93-13689/excel")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/vnd.openxmlformats")
+
+
+def test_patch_company_clears_matching_issue(client):
+    company = _sample_company(issues=[
+        ValidationIssue(type="format_suspect", field="representative", message="숫자 포함 의심"),
+    ])
+    storage.save_company(company)
+
+    res = client.patch("/api/companies/412-93-13689", json={"representative": "김종원"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["representative"] == "김종원"
+    assert body["issues"] == []
+
+
+def test_issues_endpoint(client):
+    storage.save_company(_sample_company(issues=[
+        ValidationIssue(type="missing_field", field="address", message="주소 없음"),
+    ]))
+    res = client.get("/api/issues")
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["company_name"] == "옥산농원"
+    assert body[0]["issue"]["type"] == "missing_field"
+
+
+def test_dashboard_summary(client):
+    storage.save_company(_sample_company())
+    storage.save_company(_sample_company(
+        business_no="303-81-54893", company_name="농업회사법인 동일농장",
+        credit_grade="ccc", industry_name="농업법인",
+        issues=[ValidationIssue(type="missing_field", field="address", message="주소 없음")],
+    ))
+
+    res = client.get("/api/dashboard/summary")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total_companies"] == 2
+    assert body["pending_issues"] == 1
+    assert body["by_industry"] == {"양계업": 1, "농업법인": 1}
+    assert body["by_credit_grade_band"] == {"BB": 1, "CCC 이하": 1}  # bb+ -> BB, ccc -> CCC 이하
+    assert body["parsing_success_rate"] == 50.0

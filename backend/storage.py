@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import Company, DiagnosisRatings, IndustryRank, ValidationIssue
+from .models import Company, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
 from .parser.grade_ocr import GradeResult
 from .parser.pdf_parser import ParsedCompany
 
@@ -130,3 +130,38 @@ def list_companies() -> list[Company]:
 
 def list_issues() -> list[tuple[Company, ValidationIssue]]:
     return [(company, issue) for company in list_companies() for issue in company.issues]
+
+
+def update_company(business_no: str, update: CompanyUpdate) -> Company | None:
+    """검증 대기열의 "직접 수정" — 수정한 필드와 관련된 이슈는 해결된 것으로 보고 제거한다."""
+    company = load_company(business_no)
+    if company is None:
+        return None
+    changed_fields = update.model_dump(exclude_unset=True)
+    for key, value in changed_fields.items():
+        setattr(company, key, value)
+    company.issues = [i for i in company.issues if i.field not in changed_fields]
+    save_company(company)
+    return company
+
+
+def latest_revenue(company: Company) -> float | None:
+    revenue_by_year = company.income_summary.get("매출액", {})
+    if not revenue_by_year:
+        return None
+    latest_year = max(revenue_by_year)
+    return revenue_by_year[latest_year]
+
+
+def grade_band(credit_grade: str | None) -> str:
+    """대시보드 신용등급 분포용 구간 — 목업 도넛 범례(A~BBB/BB/B/CCC 이하)와 동일."""
+    if not credit_grade:
+        return "미평가"
+    g = credit_grade.lower()
+    if g.startswith("a") or g.startswith("bbb"):
+        return "A~BBB"
+    if g.startswith("bb"):
+        return "BB"
+    if g.startswith("b"):
+        return "B"
+    return "CCC 이하"

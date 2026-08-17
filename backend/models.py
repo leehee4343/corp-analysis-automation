@@ -65,3 +65,49 @@ class Company(BaseModel):
     @property
     def status(self) -> Literal["complete", "needs_review"]:
         return "needs_review" if self.issues else "complete"
+
+
+class CompanyUpdate(BaseModel):
+    """PATCH /companies/{business_no} — 검증 대기열에서 수동 수정할 때 쓰는 부분 업데이트."""
+    company_name: str | None = None
+    representative: str | None = None
+    address: str | None = None
+    founded_date: str | None = None
+    industry_name: str | None = None
+    company_type: str | None = None
+    company_size: str | None = None
+    credit_grade: str | None = None
+    ew_grade: str | None = None
+    growth_grade: str | None = None
+
+
+class CompanyListItem(BaseModel):
+    business_no: str
+    company_name: str
+    industry_name: str | None = None
+    credit_grade: str | None = None
+    status: Literal["complete", "needs_review"]
+    revenue_latest: float | None = None
+    parsed_at: datetime
+
+
+class CompanyList(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[CompanyListItem]
+
+
+class IssueEntry(BaseModel):
+    business_no: str
+    company_name: str
+    issue: ValidationIssue
+
+
+class DashboardSummary(BaseModel):
+    total_companies: int
+    parsing_success_rate: float
+    pending_issues: int
+    by_industry: dict[str, int]
+    by_credit_grade_band: dict[str, int]
+    recent: list[CompanyListItem]
