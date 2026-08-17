@@ -145,12 +145,27 @@ def update_company(business_no: str, update: CompanyUpdate) -> Company | None:
     return company
 
 
-def latest_revenue(company: Company) -> float | None:
-    revenue_by_year = company.income_summary.get("매출액", {})
-    if not revenue_by_year:
+def latest_value(company: Company, field: str, table: str = "income_summary") -> float | None:
+    series = getattr(company, table).get(field, {})
+    if not series:
         return None
-    latest_year = max(revenue_by_year)
-    return revenue_by_year[latest_year]
+    latest_year = max(series)
+    return series[latest_year]
+
+
+def latest_revenue(company: Company) -> float | None:
+    return latest_value(company, "매출액")
+
+
+_DIAGNOSIS_RANK = {"취약": 0, "미흡": 1, "보통": 2, "양호": 3, "우수": 4}
+
+
+def overall_diagnosis(company: Company) -> str | None:
+    """목록에 한 단어로 보여줄 대표 재무진단 — 5축 중 가장 낮은 등급(약점)을 보여준다."""
+    ratings = [v for v in company.diagnosis.model_dump().values() if v]
+    if not ratings:
+        return None
+    return min(ratings, key=lambda r: _DIAGNOSIS_RANK.get(r, 2))
 
 
 def grade_band(credit_grade: str | None) -> str:

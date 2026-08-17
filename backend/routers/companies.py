@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
@@ -18,12 +20,22 @@ def _to_list_item(company: Company) -> CompanyListItem:
         credit_grade=company.credit_grade,
         status=company.status,
         revenue_latest=storage.latest_revenue(company),
+        operating_profit_latest=storage.latest_value(company, "영업이익"),
+        diagnosis_summary=storage.overall_diagnosis(company),
         parsed_at=company.parsed_at,
     )
 
 
 @router.get("/companies", response_model=CompanyList)
-def list_companies(q: str | None = None, industry: str | None = None, page: int = 1, page_size: int = 20):
+def list_companies(
+    q: str | None = None,
+    industry: str | None = None,
+    grade_band: str | None = None,
+    revenue_min: float | None = None,
+    revenue_max: float | None = None,
+    page: int = 1,
+    page_size: int = 20,
+):
     companies = storage.list_companies()
 
     if q:
@@ -31,6 +43,12 @@ def list_companies(q: str | None = None, industry: str | None = None, page: int 
         companies = [c for c in companies if needle in c.company_name or needle in c.business_no]
     if industry:
         companies = [c for c in companies if c.industry_name == industry]
+    if grade_band:
+        companies = [c for c in companies if storage.grade_band(c.credit_grade) == grade_band]
+    if revenue_min is not None:
+        companies = [c for c in companies if (storage.latest_revenue(c) or 0) >= revenue_min]
+    if revenue_max is not None:
+        companies = [c for c in companies if (storage.latest_revenue(c) or 0) < revenue_max]
 
     companies.sort(key=lambda c: c.parsed_at, reverse=True)
 
@@ -63,6 +81,19 @@ def download_excel(business_no: str):
         filename=path.name,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+@router.get("/companies/{business_no}/source-pdf")
+def download_source_pdf(business_no: str):
+    company = storage.load_company(business_no)
+    if company is None:
+        raise HTTPException(status_code=404, detail="등록되지 않은 사업자번호입니다.")
+    if not company.source_pdf:
+        raise HTTPException(status_code=404, detail="원본 PDF 경로가 저장되어 있지 않습니다.")
+    path = Path(company.source_pdf)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="원본 PDF 파일을 찾을 수 없습니다.")
+    return FileResponse(path, filename=path.name, media_type="application/pdf")
 
 
 @router.patch("/companies/{business_no}", response_model=Company)

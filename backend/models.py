@@ -88,6 +88,8 @@ class CompanyListItem(BaseModel):
     credit_grade: str | None = None
     status: Literal["complete", "needs_review"]
     revenue_latest: float | None = None
+    operating_profit_latest: float | None = None
+    diagnosis_summary: str | None = None
     parsed_at: datetime
 
 

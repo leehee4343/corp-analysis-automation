@@ -67,6 +67,38 @@ def test_search_by_name(client):
     assert res.json()["items"][0]["company_name"] == "옥산농원"
 
 
+def test_filter_by_grade_band_and_revenue(client):
+    storage.save_company(_sample_company())  # bb+ -> BB band, revenue 8307
+    storage.save_company(_sample_company(
+        business_no="303-81-54893", company_name="농업회사법인 동일농장",
+        credit_grade="a-", income_summary={"매출액": {"2023": 1000, "2024": 1500, "2025": 2000}},
+    ))
+
+    res = client.get("/api/companies", params={"grade_band": "A~BBB"})
+    assert res.json()["total"] == 1
+    assert res.json()["items"][0]["company_name"] == "농업회사법인 동일농장"
+
+    res = client.get("/api/companies", params={"revenue_min": 5000})
+    assert res.json()["total"] == 1
+    assert res.json()["items"][0]["company_name"] == "옥산농원"
+
+
+def test_download_source_pdf(client, tmp_path):
+    pdf_path = tmp_path / "1_옥산농원.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    storage.save_company(_sample_company(source_pdf=str(pdf_path)))
+
+    res = client.get("/api/companies/412-93-13689/source-pdf")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+
+
+def test_download_source_pdf_missing_file_404s(client):
+    storage.save_company(_sample_company(source_pdf="uploads/does-not-exist.pdf"))
+    res = client.get("/api/companies/412-93-13689/source-pdf")
+    assert res.status_code == 404
+
+
 def test_download_excel(client):
     storage.save_company(_sample_company())
     res = client.get("/api/companies/412-93-13689/excel")
