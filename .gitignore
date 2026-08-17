@@ -13,8 +13,9 @@ uploads/*
 outputs/*
 !outputs/.gitkeep
 
-# 실제 원본 PDF (용량 크고 민감한 사업자 정보 — git 추적 금지)
+# 실제 원본 PDF/참고자료 (민감한 사업자 정보 — git 추적 금지)
 /PDF/
+/참고자료/
 tests/sample_pdfs/*.pdf
 
 # Tesseract 언어 데이터 (용량 커서 git 추적 안 함 — setup_tessdata.py로 재생성 가능)

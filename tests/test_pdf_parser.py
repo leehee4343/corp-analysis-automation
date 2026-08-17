@@ -30,6 +30,13 @@ def test_basic_info(parsed):
     assert parsed.missing_fields == []
 
 
+def test_address_and_postal_code(parsed):
+    """PDF의 '주소' 필드가 "광주"로 잘못 표기되는 경우가 있어(참고자료의 검증된 우편발송
+    목록과 대조해 확인, PLAN.md 참고) "전남"으로 교정하고 우편번호를 분리해 저장한다."""
+    assert parsed.postal_code == "58235"
+    assert parsed.address == "전남나주시봉황면옥산유곡길48-19(옥산리)"
+
+
 def test_balance_summary(parsed):
     assert parsed.balance_summary["자산총계"] == {"2023": 3944, "2024": 4000, "2025": 4367}
     assert parsed.balance_summary["부채총계"] == {"2023": 3491, "2024": 3114, "2025": 3310}

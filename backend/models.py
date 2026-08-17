@@ -36,6 +36,7 @@ class Company(BaseModel):
     company_name: str
     representative: str | None = None
     address: str | None = None
+    postal_code: str | None = None
     founded_date: str | None = None
     industry_code: str | None = None
     industry_name: str | None = None
@@ -72,6 +73,7 @@ class CompanyUpdate(BaseModel):
     company_name: str | None = None
     representative: str | None = None
     address: str | None = None
+    postal_code: str | None = None
     founded_date: str | None = None
     industry_name: str | None = None
     company_type: str | None = None
@@ -98,6 +100,15 @@ class CompanyList(BaseModel):
     page: int
     page_size: int
     items: list[CompanyListItem]
+
+
+class MailingListEntry(BaseModel):
+    no: int
+    business_no: str
+    postal_code: str | None = None
+    address: str | None = None
+    company_name: str
+    representative: str | None = None
 
 
 class IssueEntry(BaseModel):

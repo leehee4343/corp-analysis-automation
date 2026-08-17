@@ -81,6 +81,17 @@ def parse_cover_page(lines: list[str]) -> dict[str, str]:
     return dict(zip(keys, values))
 
 
+def _normalize_address(raw: str) -> tuple[str | None, str]:
+    """"(58235)전남나주시…" -> (우편번호, 주소). labels.py의 GWANGJU_DISTRICTS 주석 참고 —
+    이 PDF들의 주소 필드가 "광주"로 잘못 나오는 경우를 "전남"으로 교정한다."""
+    m = L.ADDRESS_ZIP_RE.match(raw)
+    postal_code, rest = (m.group(1), m.group(2)) if m else (None, raw)
+    if rest.startswith("광주") and not rest[2:].startswith(L.GWANGJU_DISTRICTS):
+        rest = "전남" + rest[2:]
+    rest = re.sub(r"\s+\(", "(", rest)  # "222-12 (교촌리)" -> "222-12(교촌리)"
+    return postal_code, rest
+
+
 def parse_basic_info(lines: list[str]) -> dict[str, str]:
     """2페이지 상세 인적/기업 정보."""
     simple_labels = {
@@ -97,6 +108,12 @@ def parse_basic_info(lines: list[str]) -> dict[str, str]:
         idx = _find_index(lines, label)
         if idx is not None and idx + 1 < len(lines):
             info[key] = lines[idx + 1]
+
+    if "address" in info:
+        postal_code, address = _normalize_address(info["address"])
+        info["address"] = address
+        if postal_code:
+            info["postal_code"] = postal_code
 
     idx = _find_index(lines, "표준산업분류(11차)")
     if idx is not None and idx + 1 < len(lines):
@@ -179,6 +196,7 @@ class ParsedCompany:
     company_name: str | None = None
     representative: str | None = None
     address: str | None = None
+    postal_code: str | None = None
     founded_date: str | None = None
     industry_code: str | None = None
     industry_name: str | None = None
@@ -228,6 +246,7 @@ def parse_pdf(path: str) -> ParsedCompany:
         result.company_name = merged.get("company_name")
         result.representative = merged.get("representative")
         result.address = detail.get("address")
+        result.postal_code = detail.get("postal_code")
         result.founded_date = detail.get("founded_date")
         result.industry_code = detail.get("industry_code")
         result.industry_name = detail.get("industry_name")

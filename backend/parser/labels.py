@@ -42,3 +42,11 @@ INDUSTRY_RANK_HEADER = "업계순위"
 REPORT_QUERY_DATETIME_RE = re.compile(r"조회일시:(\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2})")
 EVALUATION_DATE_RE = re.compile(r"평가일자:(\d{4}-\d{2}-\d{2})")
 SETTLEMENT_DATE_RE = re.compile(r"결산일자:(\d{4}-\d{2}-\d{2})")
+
+ADDRESS_ZIP_RE = re.compile(r"^\((\d{5})\)(.*)$")
+
+# 사용자가 제공한 검증된 우편발송 목록(참고자료/우편발송용 목록(샘플).xlsx)과 대조해보니,
+# 이 PDF의 '주소' 필드는 전남 지역 회사인데도 "광주"로 잘못 표기되는 경우가 있음을 확인
+# (65개 중 62개에서 재현, PLAN.md 로그 참고). 실제 광주광역시 구(區) 이름이 뒤따르면 진짜
+# 광주 주소이므로 건드리지 않고, 그 외의 경우만 "전남"으로 교정한다.
+GWANGJU_DISTRICTS = ("동구", "서구", "남구", "북구", "광산구")

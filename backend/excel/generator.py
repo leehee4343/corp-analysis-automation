@@ -170,3 +170,34 @@ def generate_excel(company: Company, output_dir: Path | None = None) -> Path:
     path = output_dir / filename
     wb.save(path)
     return path
+
+
+def generate_mailing_list_excel(companies: list[Company], output_dir: Path | None = None) -> Path:
+    """참고자료/우편발송용 목록(샘플).xlsx과 동일한 형식(시트명·컬럼)으로 생성한다."""
+    output_dir = output_dir or OUTPUT_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "우편 발송용"
+
+    headers = ["No.", "우편번호", "주소", "상호명", "대표자 성명"]
+    for col, text in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=text)
+        cell.font = _HEADER_FONT
+        cell.fill = _HEADER_FILL
+
+    for i, company in enumerate(companies, start=1):
+        ws.cell(row=i + 1, column=1, value=i)
+        ws.cell(row=i + 1, column=2, value=company.postal_code or "")
+        ws.cell(row=i + 1, column=3, value=company.address or "")
+        ws.cell(row=i + 1, column=4, value=company.company_name)
+        ws.cell(row=i + 1, column=5, value=company.representative or "")
+
+    widths = {"A": 6, "B": 10, "C": 46, "D": 30, "E": 14}
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+    path = output_dir / "우편발송용_목록.xlsx"
+    wb.save(path)
+    return path

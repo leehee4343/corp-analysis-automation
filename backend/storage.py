@@ -94,6 +94,7 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
         company_name=parsed.company_name or "",
         representative=parsed.representative,
         address=parsed.address,
+        postal_code=parsed.postal_code,
         founded_date=parsed.founded_date,
         industry_code=parsed.industry_code,
         industry_name=parsed.industry_name,
