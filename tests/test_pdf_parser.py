@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.parser.grade_ocr import extract_grades
 from backend.parser.pdf_parser import parse_pdf
 
 SAMPLE = Path(__file__).parent / "sample_pdfs" / "1_옥산농원.pdf"
@@ -59,3 +60,14 @@ def test_peer_comparison(parsed):
     assert parsed.peer_comparison["조회기업"]["매출액"] == 7241
     assert parsed.peer_comparison["평균"]["매출액"] == 7335
     assert parsed.peer_comparison["상위25%"]["매출액"] == 9968
+
+
+def test_grade_ocr():
+    """Tesseract-OCR 미설치 환경에서는 스킵 (README.md 설치 안내 참고)."""
+    try:
+        grades = extract_grades(str(SAMPLE))
+    except Exception as e:  # pytesseract.TesseractNotFoundError 등
+        pytest.skip(f"Tesseract-OCR 미설치 또는 실행 실패: {e}")
+    assert grades.credit_grade == "bb+"
+    assert grades.ew_grade == "정상"
+    assert grades.growth_grade is None

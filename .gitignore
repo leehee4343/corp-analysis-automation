@@ -17,6 +17,9 @@ outputs/*
 /PDF/
 tests/sample_pdfs/*.pdf
 
+# Tesseract 언어 데이터 (용량 커서 git 추적 안 함 — setup_tessdata.py로 재생성 가능)
+/.tessdata/
+
 # OS / 에디터
 .DS_Store
 Thumbs.db

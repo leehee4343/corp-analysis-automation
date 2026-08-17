@@ -15,7 +15,11 @@ pip install -r requirements.txt
 ### Tesseract-OCR (신용등급 등 이미지 값 인식용, 별도 설치 필요)
 
 기업신용등급/EW등급/기업성장등급이 PDF 안에서 텍스트가 아니라 게이지 이미지로 렌더링되어 있어 OCR이 필요합니다.
-[Tesseract-OCR](https://github.com/UB-Mannheim/tesseract/wiki) 설치 후 한국어 데이터(`kor`)가 포함됐는지 확인하세요. `pytesseract`는 이 바이너리를 감싸는 래퍼일 뿐이라 바이너리를 따로 설치하지 않으면 동작하지 않습니다.
+
+1. Tesseract-OCR 엔진 설치: `winget install --id UB-Mannheim.TesseractOCR -e` (또는 [공식 설치파일](https://github.com/UB-Mannheim/tesseract/wiki))
+2. 한국어 언어 데이터 준비: `python setup_tessdata.py` — 관리자 권한 없이 설치한 경우 Tesseract 설치 폴더에 언어 데이터를 추가할 수 없어, 프로젝트 로컬 `.tessdata/`에 별도로 받아둡니다. `backend/parser/grade_ocr.py`가 이 폴더를 자동으로 인식합니다.
+
+`pytesseract`는 Tesseract 바이너리를 감싸는 래퍼일 뿐이라 위 1번을 건너뛰면 동작하지 않습니다.
 
 ## 실행
 
