@@ -130,9 +130,12 @@
 - [ ] "흑자전환/적자전환" 같은 텍스트형 증가율 처리 — 아래 로그의 알려진 제한사항 참고 (현재 대시보드 UI에서 쓰지 않는 필드라 우선순위 낮음)
 
 ### Phase 3 — 데이터 저장 & 스키마
-- [ ] 회사 데이터 pydantic 모델 확정
-- [ ] `data/{사업자번호}.json` 저장/조회 함수
-- [ ] 검증 이슈 저장 구조 (필드 누락/형식 의심/중복 의심)
+- [x] 회사 데이터 pydantic 모델 확정 (`backend/models.py`: `Company`, `DiagnosisRatings`, `IndustryRank`, `ValidationIssue`) (Claude, 2026-08-17)
+- [x] `data/{사업자번호}.json` 저장/조회 함수 (`backend/storage.py`: `save_company`/`load_company`/`list_companies`) — 목업 로그는 회사명으로 파일명을 썼지만(`data/옥산농원.json`) 특수문자·중복 위험이 있어 사업자번호로 변경 (Claude, 2026-08-17)
+- [x] 검증 이슈 판정 로직 (`_build_issues`): 필드 누락, 표지/상세 교차검증 불일치(형식 의심), 대표자명 숫자 포함(형식 의심), 재무제표 요약 누락, 동일 사업자번호 재조회(중복 의심 — `report_query_datetime` 비교) (Claude, 2026-08-17)
+- [x] `report_query_datetime`/`evaluation_date`/`settlement_date` 파서에 추가 (중복 의심 판정용) (Claude, 2026-08-17)
+- [x] `tests/test_storage.py` 5종 — 실사용 시나리오 단위 테스트, 전부 통과 (Claude, 2026-08-17)
+- [x] 실제 PDF 2개로 전체 파이프라인(파싱→OCR→저장) 통합 스모크 테스트 — `data/{사업자번호}.json` 정상 생성 확인 (Claude, 2026-08-17)
 
 ### Phase 4 — 엑셀 자동 생성
 - [ ] openpyxl 템플릿 작성 (기존 CRETOP/KODATA 보고서 양식 참고)
@@ -188,3 +191,4 @@
 - 2026-08-17 (Claude): Phase 2 파서 코드 작성 완료. `backend/parser/{labels,pdf_parser,grade_ocr}.py`. 텍스트 기반 필드(기본정보/재무3개년/재무비율/재무진단5축/업계순위/동종업계비교)는 `tests/test_pdf_parser.py`로 회귀 테스트 작성, 옥산농원 샘플로 6개 테스트 전부 통과 — 목업 상세페이지 하드코딩 값과 100% 일치. `venv`에 pytest 추가.
 - 2026-08-17 (Claude): 사용자 승인 하에 Tesseract-OCR을 winget(`UB-Mannheim.TesseractOCR`)으로 설치. 관리자 권한이 없어 설치 폴더(`C:\Program Files\Tesseract-OCR\tessdata`)에 한국어 언어 데이터(`kor.traineddata`)를 쓸 수 없었음 → 대신 프로젝트 로컬 `.tessdata/`에 내려받아 `TESSDATA_PREFIX`로 사용하는 방식으로 우회(`setup_tessdata.py` 신규, `.gitignore`에 `/.tessdata/` 추가, 용량 커서 git 미추적). 게이지 이미지를 그대로 OCR하면 색깔 아치가 섞여 오인식이 심해(`fbb+`, `asvan` 등) 색상 기반 이진화(무채색+어두운 픽셀만 검정으로 남김) 전처리를 추가, `bb+`/`정상`/`None`(값없음) 전부 정확히 인식하도록 개선. `tests/test_pdf_parser.py`에 `test_grade_ocr` 추가(Tesseract 없으면 스킵), 총 7개 테스트 전부 통과.
 - 2026-08-17 (Claude): 사용자 요청으로 구조가 다른 두 번째 샘플(`10 (주)삼진 지.에프.pdf`, 36페이지, 일반법인)로 검증 진행. **버그 발견**: 업계순위(10p→13p)/동종업계비교(11p→14p)/재무진단(28~31p→34~36p)가 옥산농원(31p, 개인사업자)과 다른 페이지에 위치해 고정 페이지 인덱스로 찾던 기존 구현이 전부 빈 값을 반환함. **수정**: `parse_pdf`가 문서 전체 페이지를 하나의 줄 리스트로 이어붙여(`all_lines`) 헤더 텍스트를 검색하도록 변경 — 페이지 위치와 무관하게 동작. 요약재무3표(4/5/6p)는 두 샘플 모두 같은 위치라 안정적으로 확인됨. `tests/test_pdf_parser_corp.py` 신규 추가(페이지-무관성 회귀 테스트), 총 12개 테스트 전부 통과. **알려진 제한사항 발견**: 순이익이 흑자/적자를 오가면(예: 578→-29→580) "순이익증가율"이 숫자 대신 "흑자전환"/"적자전환" 텍스트로 표기되어 현재 파서는 해당 필드를 조용히 건너뜀(에러는 아님) — 대시보드가 이 필드를 안 쓰므로 우선순위 낮음, 추후 Excel에 전체 재무비율을 담을 때 처리 필요.
+- 2026-08-17 (Claude): Phase 3 완료. `backend/models.py`(pydantic `Company`/`DiagnosisRatings`/`IndustryRank`/`ValidationIssue`), `backend/storage.py`(저장/조회/이슈판정) 작성. 저장 키를 목업 로그의 회사명(`data/옥산농원.json`) 대신 사업자번호로 변경 — 특수문자·동명 회사 위험 회피(의도적 이탈, 목업 로그 문구와 다름). 중복 의심 판정용으로 `report_query_datetime`/`evaluation_date`/`settlement_date` 파서에 추가. `tests/test_storage.py` 5개 신규(총 17개 테스트 전부 통과), 실제 PDF 2개로 파싱→OCR→저장 전체 파이프라인 통합 스모크 테스트도 확인(`data/{사업자번호}.json` 정상 생성).

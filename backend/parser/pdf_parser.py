@@ -192,6 +192,9 @@ class ParsedCompany:
     peer_comparison: dict = field(default_factory=dict)
     cross_check_mismatch: list[str] = field(default_factory=list)
     missing_fields: list[str] = field(default_factory=list)
+    report_query_datetime: str | None = None
+    evaluation_date: str | None = None
+    settlement_date: str | None = None
     source_pdf: str | None = None
     page_count: int = 0
 
@@ -232,6 +235,13 @@ def parse_pdf(path: str) -> ParsedCompany:
 
     full_text = "\n".join(page.get_text() for page in doc)
     result.diagnosis = parse_diagnosis(full_text)
+
+    if m := L.REPORT_QUERY_DATETIME_RE.search(full_text):
+        result.report_query_datetime = m.group(1)
+    if m := L.EVALUATION_DATE_RE.search(full_text):
+        result.evaluation_date = m.group(1)
+    if m := L.SETTLEMENT_DATE_RE.search(full_text):
+        result.settlement_date = m.group(1)
 
     required = ["business_no", "company_name", "representative", "address"]
     result.missing_fields = [f for f in required if not getattr(result, f)]

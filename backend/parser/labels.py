@@ -37,3 +37,8 @@ PEER_COMPARISON_ROWS = ["조회기업", "상위25%", "평균", "하위25%"]
 PEER_COMPARISON_FIELDS = ["총자산", "자본총계", "납입자본금", "매출액", "영업이익", "당기순이익"]
 
 INDUSTRY_RANK_HEADER = "업계순위"
+
+# 매 페이지 상단에 반복되는 보고서 조회 시각 — 같은 사업자번호로 재조회했는지(=중복 의심) 판단용
+REPORT_QUERY_DATETIME_RE = re.compile(r"조회일시:(\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2})")
+EVALUATION_DATE_RE = re.compile(r"평가일자:(\d{4}-\d{2}-\d{2})")
+SETTLEMENT_DATE_RE = re.compile(r"결산일자:(\d{4}-\d{2}-\d{2})")
