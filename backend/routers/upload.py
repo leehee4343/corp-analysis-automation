@@ -9,10 +9,9 @@ from ..excel.generator import generate_excel
 from ..models import Company
 from ..parser.grade_ocr import GradeResult, extract_grades
 from ..parser.pdf_parser import parse_pdf
+from ..paths import UPLOADS_DIR
 
 router = APIRouter(prefix="/api", tags=["upload"])
-
-UPLOADS_DIR = Path(__file__).resolve().parents[2] / "uploads"
 
 
 @router.post("/upload", response_model=Company)

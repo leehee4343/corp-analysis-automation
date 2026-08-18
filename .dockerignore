@@ -1,0 +1,14 @@
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+uploads/
+outputs/
+PDF/
+참고자료/
+tests/
+.tessdata/
+*.log

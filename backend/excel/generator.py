@@ -15,8 +15,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .. import category_list
 from ..models import Company
-
-OUTPUT_DIR = Path(__file__).resolve().parents[2] / "outputs"
+from ..paths import OUTPUT_DIR
 
 _TITLE_FONT = Font(size=16, bold=True)
 _SECTION_FONT = Font(size=12, bold=True, color="FFFFFF")

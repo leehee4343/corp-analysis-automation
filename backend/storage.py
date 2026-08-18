@@ -11,8 +11,7 @@ from pathlib import Path
 from .models import Company, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
 from .parser.grade_ocr import GradeResult
 from .parser.pdf_parser import ParsedCompany
-
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+from .paths import DATA_DIR
 
 _FIELD_LABELS_KO = {
     "business_no": "사업자번호",
