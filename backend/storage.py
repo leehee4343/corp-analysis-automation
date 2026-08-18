@@ -11,7 +11,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-from .models import Company, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
+from .models import Company, CompanyListItem, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
 from .parser.grade_ocr import GradeResult
 from .parser.pdf_parser import ParsedCompany
 from .paths import DB_PATH
@@ -219,15 +219,43 @@ def latest_revenue(company: Company) -> float | None:
     return latest_value(company, "매출액")
 
 
-_DIAGNOSIS_RANK = {"취약": 0, "미흡": 1, "보통": 2, "양호": 3, "우수": 4}
+def to_list_item(company: Company) -> CompanyListItem:
+    """기업목록/영업 대상 분류 화면이 공통으로 쓰는 요약 행. 두 화면이 완전히 동일한
+    항목 구성을 쓰기로 해서 여기 한 곳에서만 정의한다."""
+    return CompanyListItem(
+        business_no=company.business_no,
+        company_name=company.company_name,
+        industry_name=company.industry_name,
+        credit_grade=company.credit_grade,
+        status=company.status,
+        revenue_latest=latest_revenue(company),
+        operating_profit_latest=latest_value(company, "영업이익"),
+        parsed_at=company.parsed_at,
+    )
 
 
-def overall_diagnosis(company: Company) -> str | None:
-    """목록에 한 단어로 보여줄 대표 재무진단 — 5축 중 가장 낮은 등급(약점)을 보여준다."""
-    ratings = [v for v in company.diagnosis.model_dump().values() if v]
-    if not ratings:
-        return None
-    return min(ratings, key=lambda r: _DIAGNOSIS_RANK.get(r, 2))
+def filter_companies(
+    companies: list[Company],
+    *,
+    q: str | None = None,
+    industry: str | None = None,
+    grade_band_filter: str | None = None,
+    revenue_min: float | None = None,
+    revenue_max: float | None = None,
+) -> list[Company]:
+    """기업목록/영업 대상 분류 화면이 공통으로 쓰는 검색·필터 로직."""
+    if q:
+        needle = q.strip()
+        companies = [c for c in companies if needle in c.company_name or needle in c.business_no]
+    if industry:
+        companies = [c for c in companies if c.industry_name == industry]
+    if grade_band_filter:
+        companies = [c for c in companies if grade_band(c.credit_grade) == grade_band_filter]
+    if revenue_min is not None:
+        companies = [c for c in companies if (latest_revenue(c) or 0) >= revenue_min]
+    if revenue_max is not None:
+        companies = [c for c in companies if (latest_revenue(c) or 0) < revenue_max]
+    return companies
 
 
 def grade_band(credit_grade: str | None) -> str:

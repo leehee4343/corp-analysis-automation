@@ -400,9 +400,9 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
           <table class="mt">
             <thead><tr>
               <th>기업명</th><th>사업자번호</th><th>업종</th><th class="num">매출액(백만)</th>
-              <th class="num">영업이익(백만)</th><th>신용등급</th><th>재무진단</th><th>등록/업데이트</th><th></th>
+              <th class="num">영업이익(백만)</th><th>신용등급</th><th>등록/업데이트</th><th></th>
             </tr></thead>
-            <tbody id="companyTableBody"><tr><td colspan="9" class="loading">불러오는 중…</td></tr></tbody>
+            <tbody id="companyTableBody"><tr><td colspan="8" class="loading">불러오는 중…</td></tr></tbody>
           </table>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--sub);">
@@ -445,18 +445,32 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
       </div>
       <div class="content">
         <div class="fbar">
-          <input id="categorySearchInput" placeholder="기업명 / 대표자명 / 사업자번호 검색">
+          <input id="categorySearchInput" placeholder="기업명 / 사업자번호 검색">
+          <select id="categoryFilterIndustry"><option value="">업종 전체</option></select>
+          <select id="categoryFilterGrade">
+            <option value="">신용등급 전체</option>
+            <option value="A~BBB">A~BBB</option>
+            <option value="BB">BB</option>
+            <option value="B">B</option>
+            <option value="CCC 이하">CCC 이하</option>
+          </select>
+          <select id="categoryFilterRevenue">
+            <option value="">매출액 전체</option>
+            <option value="50+">50억 이상</option>
+            <option value="10-50">10~50억</option>
+            <option value="0-10">10억 미만</option>
+          </select>
           <div class="sp"></div>
-          <button class="btn pri" id="btnCategoryExport">📥 엑셀 다운로드</button>
+          <button class="btn" id="btnCategoryExport">📥 전체 엑셀 내보내기</button>
         </div>
 
         <div class="mv">
           <table class="mt">
             <thead><tr>
-              <th>No</th><th>기업체명</th><th>대표자명</th><th>업종</th><th>사업자번호</th>
-              <th>신용등급</th><th class="num">매출액(백만)</th><th>재무진단</th><th></th>
+              <th>기업명</th><th>사업자번호</th><th>업종</th><th class="num">매출액(백만)</th>
+              <th class="num">영업이익(백만)</th><th>신용등급</th><th>등록/업데이트</th><th></th>
             </tr></thead>
-            <tbody id="categoryTableBody"><tr><td colspan="9" class="loading">불러오는 중…</td></tr></tbody>
+            <tbody id="categoryTableBody"><tr><td colspan="8" class="loading">불러오는 중…</td></tr></tbody>
           </table>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--sub);">
@@ -692,7 +706,7 @@ let currentCategory = null;
 function showPage(name, el, param){
   if(name === 'detail' && param) currentBusinessNo = param;
   if(name === 'category' && param){
-    if(currentCategory !== param){ categoryState = {q:'', page:1, pageSize:10}; }
+    if(currentCategory !== param){ categoryState = {q:'', industry:'', gradeBand:'', revenueMin:null, revenueMax:null, page:1, pageSize:10}; }
     currentCategory = param;
   }
   document.querySelectorAll('.main > .page').forEach(p => p.classList.remove('on'));
@@ -803,7 +817,7 @@ function renderRecentTable(items){
 
 /* ===== 기업 목록 ===== */
 let listState = { q:'', industry:'', gradeBand:'', revenueMin:null, revenueMax:null, page:1, pageSize:10 };
-let industryOptionsLoaded = false;
+let industryOptionsLoaded = {};
 
 function buildListParams(state){
   const p = new URLSearchParams();
@@ -817,39 +831,40 @@ function buildListParams(state){
   return p;
 }
 
-async function populateIndustryOptions(){
+async function populateIndustryOptions(selectId){
   try{
     const summary = await apiGet('/api/dashboard/summary');
-    const select = document.getElementById('filterIndustry');
+    const select = document.getElementById(selectId);
     const industries = Object.keys(summary.by_industry).sort();
     const current = select.value;
     select.innerHTML = '<option value="">업종 전체</option>' + industries.map(i => `<option value="${escapeHtml(i)}">${escapeHtml(i)}</option>`).join('');
     select.value = current;
-    industryOptionsLoaded = true;
+    industryOptionsLoaded[selectId] = true;
   }catch(e){ /* 무시, 기본 옵션 유지 */ }
 }
 
 async function loadList(){
-  if(!industryOptionsLoaded) await populateIndustryOptions();
+  if(!industryOptionsLoaded['filterIndustry']) await populateIndustryOptions('filterIndustry');
   const tbody = document.getElementById('companyTableBody');
-  tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중…</td></tr>';
   try{
     const params = buildListParams(listState);
     const data = await apiGet(`/api/companies?${params}`);
-    renderCompanyTable(data.items);
+    renderCompanyRows('companyTableBody', data.items);
     renderPagination(data.total, data.page, data.page_size);
     const shown = data.items.length;
     const startIdx = shown ? (data.page-1)*data.page_size + 1 : 0;
     document.getElementById('listTotalInfo').textContent = `${data.total}개 중 ${startIdx}–${startIdx + shown - (shown?1:0)} 표시`;
     document.getElementById('listStatusTotal').textContent = `총 ${data.total}개 기업`;
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
-function renderCompanyTable(items){
-  const tbody = document.getElementById('companyTableBody');
-  if(!items.length){ tbody.innerHTML = '<tr><td colspan="9" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
+// 기업목록/영업 대상 분류 화면이 동일한 항목 구성을 쓰므로 렌더링 함수를 공유한다.
+function renderCompanyRows(tbodyId, items){
+  const tbody = document.getElementById(tbodyId);
+  if(!items.length){ tbody.innerHTML = '<tr><td colspan="8" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
   tbody.innerHTML = items.map(c => `
     <tr>
       <td style="font-weight:700; color:var(--blue); cursor:pointer;" onclick="viewDetail('${c.business_no}')">${escapeHtml(c.company_name)}</td>
@@ -858,7 +873,6 @@ function renderCompanyTable(items){
       <td class="num">${fmtNum(c.revenue_latest)}</td>
       <td class="num">${fmtNum(c.operating_profit_latest)}</td>
       <td>${c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
-      <td>${c.diagnosis_summary ? `<span class="bdg ${diagBadgeClass(c.diagnosis_summary)}">${escapeHtml(c.diagnosis_summary)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
       <td>${fmtDate(c.parsed_at)}</td>
       <td style="display:flex; gap:6px;">
         <button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>
@@ -938,54 +952,54 @@ const CATEGORY_META = {
   agri_corp: {label:'농업회사법인'},
   farm_partnership: {label:'영농조합법인'},
 };
-let categoryState = { q:'', page:1, pageSize:10 };
+let categoryState = { q:'', industry:'', gradeBand:'', revenueMin:null, revenueMax:null, page:1, pageSize:10 };
 
 async function loadCategoryList(){
   const meta = CATEGORY_META[currentCategory];
   document.getElementById('categoryTitle').textContent = meta.label;
   document.getElementById('categorySearchInput').value = categoryState.q;
-  document.getElementById('btnCategoryExport').onclick = () => {
-    window.location = `/api/category-list/${currentCategory}/excel`;
-  };
+  if(!industryOptionsLoaded['categoryFilterIndustry']) await populateIndustryOptions('categoryFilterIndustry');
+  document.getElementById('btnCategoryExport').onclick = exportCategoryExcel;
 
   const tbody = document.getElementById('categoryTableBody');
-  tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중…</td></tr>';
   try{
-    const params = new URLSearchParams();
-    if(categoryState.q) params.set('q', categoryState.q);
-    params.set('page', categoryState.page);
-    params.set('page_size', categoryState.pageSize);
+    const params = buildListParams(categoryState);
     const data = await apiGet(`/api/category-list/${currentCategory}?${params}`);
-    renderCategoryTable(data.items);
+    renderCompanyRows('categoryTableBody', data.items);
     renderCategoryPagination(data.total, data.page, data.page_size);
     const shown = data.items.length;
     const startIdx = shown ? (data.page-1)*data.page_size + 1 : 0;
     document.getElementById('categoryTotalInfo').textContent = `${data.total}개 중 ${startIdx}–${startIdx + shown - (shown?1:0)} 표시`;
     document.getElementById('categoryStatusTotal').textContent = `총 ${data.total}개 기업`;
   }catch(e){
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
-function renderCategoryTable(items){
-  const tbody = document.getElementById('categoryTableBody');
-  if(!items.length){ tbody.innerHTML = '<tr><td colspan="9" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
-  tbody.innerHTML = items.map(c => `
-    <tr>
-      <td>${c.no}</td>
-      <td style="font-weight:700; color:var(--blue); cursor:pointer;" onclick="viewDetail('${c.business_no}')">${escapeHtml(c.company_name)}</td>
-      <td>${escapeHtml(c.representative || '-')}</td>
-      <td>${escapeHtml(c.industry_name || '-')}</td>
-      <td>${escapeHtml(c.business_no)}</td>
-      <td>${c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
-      <td class="num">${fmtNum(c.revenue_latest)}</td>
-      <td>${c.diagnosis_summary ? `<span class="bdg ${diagBadgeClass(c.diagnosis_summary)}">${escapeHtml(c.diagnosis_summary)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
-      <td style="display:flex; gap:6px;">
-        <button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>
-        <button class="btn sm" onclick="window.location='/api/companies/${c.business_no}/excel'">엑셀</button>
-      </td>
-    </tr>
-  `).join('');
+async function exportCategoryExcel(){
+  const btn = document.getElementById('btnCategoryExport');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '내보내는 중…';
+  try{
+    const params = buildListParams({...categoryState, page:1, pageSize:1000});
+    const data = await apiGet(`/api/category-list/${currentCategory}?${params}`);
+    for(const item of data.items){
+      const a = document.createElement('a');
+      a.href = `/api/companies/${item.business_no}/excel`;
+      a.setAttribute('download', '');
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }catch(e){
+    alert('엑셀 내보내기 중 오류: ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 }
 
 function renderCategoryPagination(total, page, pageSize){
@@ -1432,6 +1446,17 @@ function wireStaticHandlers(){
   document.getElementById('categorySearchInput').addEventListener('input', debounce(e => {
     categoryState.q = e.target.value; categoryState.page = 1; loadCategoryList();
   }, 300));
+  document.getElementById('categoryFilterIndustry').addEventListener('change', e => {
+    categoryState.industry = e.target.value; categoryState.page = 1; loadCategoryList();
+  });
+  document.getElementById('categoryFilterGrade').addEventListener('change', e => {
+    categoryState.gradeBand = e.target.value; categoryState.page = 1; loadCategoryList();
+  });
+  document.getElementById('categoryFilterRevenue').addEventListener('change', e => {
+    const map = {'':{min:null,max:null}, '50+':{min:5000,max:null}, '10-50':{min:1000,max:5000}, '0-10':{min:null,max:1000}};
+    const v = map[e.target.value] || {min:null, max:null};
+    categoryState.revenueMin = v.min; categoryState.revenueMax = v.max; categoryState.page = 1; loadCategoryList();
+  });
 
   document.getElementById('headerSearch').addEventListener('keydown', e => {
     if(e.key === 'Enter'){

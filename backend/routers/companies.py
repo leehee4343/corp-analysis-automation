@@ -7,23 +7,9 @@ from fastapi.responses import FileResponse
 
 from .. import storage
 from ..excel.generator import generate_excel
-from ..models import Company, CompanyList, CompanyListItem, CompanyUpdate, DashboardSummary
+from ..models import Company, CompanyList, CompanyUpdate, DashboardSummary
 
 router = APIRouter(prefix="/api", tags=["companies"])
-
-
-def _to_list_item(company: Company) -> CompanyListItem:
-    return CompanyListItem(
-        business_no=company.business_no,
-        company_name=company.company_name,
-        industry_name=company.industry_name,
-        credit_grade=company.credit_grade,
-        status=company.status,
-        revenue_latest=storage.latest_revenue(company),
-        operating_profit_latest=storage.latest_value(company, "영업이익"),
-        diagnosis_summary=storage.overall_diagnosis(company),
-        parsed_at=company.parsed_at,
-    )
 
 
 @router.get("/companies", response_model=CompanyList)
@@ -36,20 +22,11 @@ def list_companies(
     page: int = 1,
     page_size: int = 20,
 ):
-    companies = storage.list_companies()
-
-    if q:
-        needle = q.strip()
-        companies = [c for c in companies if needle in c.company_name or needle in c.business_no]
-    if industry:
-        companies = [c for c in companies if c.industry_name == industry]
-    if grade_band:
-        companies = [c for c in companies if storage.grade_band(c.credit_grade) == grade_band]
-    if revenue_min is not None:
-        companies = [c for c in companies if (storage.latest_revenue(c) or 0) >= revenue_min]
-    if revenue_max is not None:
-        companies = [c for c in companies if (storage.latest_revenue(c) or 0) < revenue_max]
-
+    companies = storage.filter_companies(
+        storage.list_companies(),
+        q=q, industry=industry, grade_band_filter=grade_band,
+        revenue_min=revenue_min, revenue_max=revenue_max,
+    )
     companies.sort(key=lambda c: c.parsed_at, reverse=True)
 
     total = len(companies)
@@ -58,7 +35,7 @@ def list_companies(
 
     return CompanyList(
         total=total, page=page, page_size=page_size,
-        items=[_to_list_item(c) for c in page_items],
+        items=[storage.to_list_item(c) for c in page_items],
     )
 
 
@@ -126,5 +103,5 @@ def dashboard_summary():
         pending_issues=sum(len(c.issues) for c in companies),
         by_industry=by_industry,
         by_credit_grade_band=by_grade_band,
-        recent=[_to_list_item(c) for c in recent],
+        recent=[storage.to_list_item(c) for c in recent],
     )

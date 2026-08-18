@@ -13,7 +13,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .. import category_list, storage
 from ..models import Company
 from ..paths import OUTPUT_DIR
 
@@ -296,40 +295,5 @@ def generate_mailing_list_excel(companies: list[Company], output_dir: Path | Non
         ws.column_dimensions[col].width = width
 
     path = output_dir / "우편발송용_목록.xlsx"
-    wb.save(path)
-    return path
-
-
-_CATEGORY_EXPORT_HEADERS = ["No.", "사업자번호", "기업체명", "대표자명", "업종", "신용등급", "매출액(백만)"]
-
-
-def generate_category_excel(category: str, companies: list[Company], output_dir: Path | None = None) -> Path:
-    """법인형태별 분류(개인사업자/일반법인/농업회사법인/영농조합법인) 목록을 내보낸다.
-    PDF로 분석되어 DB에 저장된 회사만 대상 — 외부 참고자료 없이 파싱 결과 그대로."""
-    meta = category_list.CATEGORIES[category]
-
-    output_dir = output_dir or OUTPUT_DIR
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = meta["label"]
-
-    for col, text in enumerate(_CATEGORY_EXPORT_HEADERS, start=1):
-        cell = ws.cell(row=1, column=col, value=text)
-        cell.font = _HEADER_FONT
-        cell.fill = _HEADER_FILL
-
-    for i, company in enumerate(companies, start=1):
-        row = i + 1
-        ws.cell(row=row, column=1, value=i)
-        ws.cell(row=row, column=2, value=company.business_no)
-        ws.cell(row=row, column=3, value=company.company_name)
-        ws.cell(row=row, column=4, value=company.representative or "")
-        ws.cell(row=row, column=5, value=company.industry_name or "")
-        ws.cell(row=row, column=6, value=company.credit_grade or "")
-        ws.cell(row=row, column=7, value=storage.latest_revenue(company))
-
-    path = output_dir / f"{meta['label']}_목록.xlsx"
     wb.save(path)
     return path

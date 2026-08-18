@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from openpyxl import load_workbook
 
 from backend import category_list, storage
 from backend.app import app
@@ -17,7 +16,9 @@ def _company(**overrides) -> Company:
         company_name="옥산농원",
         representative="김종원",
         company_type="개인사업자",
+        industry_name="양계업",
         credit_grade="bb+",
+        income_summary={"매출액": {"2025": 8307.0}},
         parsed_at=datetime.now(timezone.utc),
     )
     base.update(overrides)
@@ -91,14 +92,38 @@ def test_category_search(client):
     assert res2.json()["total"] == 0
 
 
-def test_category_excel_export(client):
+def test_category_list_item_shape_matches_company_list(client):
+    """기업목록(/api/companies)과 항목 구성이 완전히 동일해야 한다(재무진단 제거,
+    영업이익/등록일 포함)."""
     storage.save_company(_company())
-    res = client.get("/api/category-list/individual/excel")
-    assert res.status_code == 200
+    res = client.get("/api/category-list/individual")
+    item = res.json()["items"][0]
+    assert set(item.keys()) == {
+        "business_no", "company_name", "industry_name", "credit_grade",
+        "status", "revenue_latest", "operating_profit_latest", "parsed_at",
+    }
+    assert item["revenue_latest"] == 8307.0
 
-    import io
-    wb = load_workbook(io.BytesIO(res.content))
-    ws = wb.active
-    assert [c.value for c in ws[1]] == ["No.", "사업자번호", "기업체명", "대표자명", "업종", "신용등급", "매출액(백만)"]
-    assert ws["B2"].value == "412-93-13689"
-    assert ws["C2"].value == "옥산농원"
+
+def test_category_list_industry_filter(client):
+    storage.save_company(_company())
+    res = client.get("/api/category-list/individual", params={"industry": "양계업"})
+    assert res.json()["total"] == 1
+    res2 = client.get("/api/category-list/individual", params={"industry": "없는업종"})
+    assert res2.json()["total"] == 0
+
+
+def test_category_list_grade_band_filter(client):
+    storage.save_company(_company(credit_grade="bb+"))
+    res = client.get("/api/category-list/individual", params={"grade_band": "BB"})
+    assert res.json()["total"] == 1
+    res2 = client.get("/api/category-list/individual", params={"grade_band": "A~BBB"})
+    assert res2.json()["total"] == 0
+
+
+def test_category_list_revenue_filter(client):
+    storage.save_company(_company())  # 매출액 83.07억
+    res = client.get("/api/category-list/individual", params={"revenue_min": 5000})
+    assert res.json()["total"] == 1
+    res2 = client.get("/api/category-list/individual", params={"revenue_min": 100000})
+    assert res2.json()["total"] == 0

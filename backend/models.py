@@ -108,7 +108,6 @@ class CompanyListItem(BaseModel):
     status: Literal["complete", "needs_review"]
     revenue_latest: float | None = None
     operating_profit_latest: float | None = None
-    diagnosis_summary: str | None = None
     parsed_at: datetime
 
 
@@ -119,29 +118,15 @@ class CompanyList(BaseModel):
     items: list[CompanyListItem]
 
 
-class CategoryListItem(BaseModel):
-    """법인형태별 분류(개인사업자/일반법인/농업회사법인/영농조합법인) 목록 한 건 —
-    전부 PDF로 분석되어 DB에 저장된 회사이므로(외부 참고자료 없음) 항상 실제 파싱
-    데이터를 담는다."""
-    no: int
-    business_no: str
-    company_name: str
-    representative: str | None = None
-    address: str | None = None
-    industry_name: str | None = None
-    credit_grade: str | None = None
-    revenue_latest: float | None = None
-    diagnosis_summary: str | None = None
-    parsed_at: datetime
-
-
 class CategoryList(BaseModel):
+    """법인형태별 분류(개인사업자/일반법인/농업회사법인/영농조합법인) 목록 — 항목
+    구성은 기업목록(CompanyList)과 완전히 동일하고, category/label만 추가로 붙는다."""
     category: str
     label: str
     total: int
     page: int
     page_size: int
-    items: list[CategoryListItem]
+    items: list[CompanyListItem]
 
 
 class MailingListEntry(BaseModel):
