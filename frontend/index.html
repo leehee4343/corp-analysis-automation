@@ -973,14 +973,17 @@ function renderCategoryTable(items){
   tbody.innerHTML = items.map(c => `
     <tr>
       <td>${c.no}</td>
-      <td style="font-weight:700;">${escapeHtml(c.company_name)}</td>
+      <td style="font-weight:700; color:var(--blue); cursor:pointer;" onclick="viewDetail('${c.business_no}')">${escapeHtml(c.company_name)}</td>
       <td>${escapeHtml(c.representative || '-')}</td>
       <td>${escapeHtml(c.industry_name || '-')}</td>
       <td>${escapeHtml(c.business_no)}</td>
       <td>${c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
       <td class="num">${fmtNum(c.revenue_latest)}</td>
       <td>${c.diagnosis_summary ? `<span class="bdg ${diagBadgeClass(c.diagnosis_summary)}">${escapeHtml(c.diagnosis_summary)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
-      <td><button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button></td>
+      <td style="display:flex; gap:6px;">
+        <button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>
+        <button class="btn sm" onclick="window.location='/api/companies/${c.business_no}/excel'">엑셀</button>
+      </td>
     </tr>
   `).join('');
 }
