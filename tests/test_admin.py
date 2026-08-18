@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend import category_list, master_list, storage
+from backend import master_list, storage
 from backend.app import app
 from backend.excel import generator as excel_generator
 from backend.routers import upload as upload_router
@@ -13,9 +13,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(upload_router, "UPLOADS_DIR", tmp_path / "uploads")
     monkeypatch.setattr(excel_generator, "OUTPUT_DIR", tmp_path / "outputs")
     monkeypatch.setattr(master_list, "MASTER_LIST_PATH", tmp_path / "참고자료" / "검색조회 목록.xlsx")
-    monkeypatch.setattr(category_list, "CATEGORY_LIST_PATH", tmp_path / "참고자료" / "추가메뉴.xlsx")
     master_list._cache["key"] = None
-    category_list._cache.clear()
     return TestClient(app)
 
 
@@ -66,6 +64,17 @@ def test_unknown_key_returns_404(client, monkeypatch):
     monkeypatch.setenv("ADMIN_UPLOAD_TOKEN", "correct-token")
     res = client.post(
         "/api/admin/reference-upload/does_not_exist",
+        headers={"x-admin-token": "correct-token"},
+        files={"file": ("m.xlsx", _dummy_xlsx_bytes())},
+    )
+    assert res.status_code == 404
+
+
+def test_category_list_key_no_longer_accepted(client, monkeypatch):
+    """category_list는 DB 기반으로 전환되어(외부 xlsx 없음) 더 이상 업로드 대상이 아니다."""
+    monkeypatch.setenv("ADMIN_UPLOAD_TOKEN", "correct-token")
+    res = client.post(
+        "/api/admin/reference-upload/category_list",
         headers={"x-admin-token": "correct-token"},
         files={"file": ("m.xlsx", _dummy_xlsx_bytes())},
     )

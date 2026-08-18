@@ -143,22 +143,19 @@ class MasterList(BaseModel):
 
 
 class CategoryListItem(BaseModel):
-    """'추가메뉴' xlsx(개인사업자/일반법인/농업회사법인/영농조합법인) 한 건.
-    credit_grade_ref/revenue_ref는 참고자료 시트 자체에 적힌 값(원문 그대로, 형식이
-    제각각이라 가공하지 않음) — 우리 PDF 분석이 끝난 기업이면 analyzed=True와 함께
-    business_no/credit_grade/revenue_latest에 우리 쪽 파싱 데이터가 채워진다."""
+    """법인형태별 분류(개인사업자/일반법인/농업회사법인/영농조합법인) 목록 한 건 —
+    전부 PDF로 분석되어 DB에 저장된 회사이므로(외부 참고자료 없음) 항상 실제 파싱
+    데이터를 담는다."""
     no: int
+    business_no: str
     company_name: str
     representative: str | None = None
     address: str | None = None
-    industry: str | None = None
-    reg_no: str | None = None
-    credit_grade_ref: str | None = None
-    revenue_ref: str | None = None
-    analyzed: bool
-    business_no: str | None = None
+    industry_name: str | None = None
     credit_grade: str | None = None
     revenue_latest: float | None = None
+    diagnosis_summary: str | None = None
+    parsed_at: datetime
 
 
 class CategoryList(BaseModel):

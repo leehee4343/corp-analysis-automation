@@ -7,7 +7,7 @@ import os
 
 from fastapi import APIRouter, Header, HTTPException, UploadFile
 
-from .. import category_list, master_list
+from .. import master_list
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -21,10 +21,9 @@ def _check_token(x_admin_token: str | None) -> None:
 def _target_path(key: str):
     # master_list.MASTER_LIST_PATH를 매 요청마다 새로 읽어야 테스트의 monkeypatch가
     # 반영된다 — 모듈 임포트 시점에 값을 복사해두면 갱신되지 않는다.
+    # category_list는 더 이상 xlsx를 쓰지 않아(DB 기반으로 전환) 업로드 대상에서 제외.
     if key == "master_list":
         return master_list.MASTER_LIST_PATH
-    if key == "category_list":
-        return category_list.CATEGORY_LIST_PATH
     return None
 
 

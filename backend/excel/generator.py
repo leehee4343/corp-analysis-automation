@@ -13,7 +13,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .. import category_list
+from .. import category_list, storage
 from ..models import Company
 from ..paths import OUTPUT_DIR
 
@@ -300,26 +300,13 @@ def generate_mailing_list_excel(companies: list[Company], output_dir: Path | Non
     return path
 
 
-_CATEGORY_EXPORT_HEADERS = [
-    "No.", "기업체명", "대표자명", "주소/연락처", "대표자 연령", "가업승계 여부", "형태",
-    "업종", "사업자·법인등록번호", "설립년월", "상세업종", "기업등급", "주채권은행",
-    "매출액", "영업이익", "당기순이익", "보험료", "배당유무", "법인경영체",
-    "법인세감면", "기타",
-]
-
-_CATEGORY_EXPORT_FIELDS = (
-    "no", "company_name", "representative", "address", "representative_age",
-    "succession", "biz_type", "industry", "reg_no", "founded_date",
-    "detail_industry", "credit_grade", "main_bank", "revenue", "operating_profit",
-    "net_income", "insurance_premium", "dividend", "corp_management",
-    "tax_reduction", "etc",
-)
+_CATEGORY_EXPORT_HEADERS = ["No.", "사업자번호", "기업체명", "대표자명", "업종", "신용등급", "매출액(백만)"]
 
 
-def generate_category_excel(category: str, output_dir: Path | None = None) -> Path:
-    """'추가메뉴' 참고자료의 한 시트(카테고리)를 원본 컬럼 그대로 내보낸다."""
+def generate_category_excel(category: str, companies: list[Company], output_dir: Path | None = None) -> Path:
+    """법인형태별 분류(개인사업자/일반법인/농업회사법인/영농조합법인) 목록을 내보낸다.
+    PDF로 분석되어 DB에 저장된 회사만 대상 — 외부 참고자료 없이 파싱 결과 그대로."""
     meta = category_list.CATEGORIES[category]
-    rows = category_list.load_category_rows(category)
 
     output_dir = output_dir or OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -333,9 +320,15 @@ def generate_category_excel(category: str, output_dir: Path | None = None) -> Pa
         cell.font = _HEADER_FONT
         cell.fill = _HEADER_FILL
 
-    for r, row in enumerate(rows, start=2):
-        for c, field in enumerate(_CATEGORY_EXPORT_FIELDS, start=1):
-            ws.cell(row=r, column=c, value=row.get(field))
+    for i, company in enumerate(companies, start=1):
+        row = i + 1
+        ws.cell(row=row, column=1, value=i)
+        ws.cell(row=row, column=2, value=company.business_no)
+        ws.cell(row=row, column=3, value=company.company_name)
+        ws.cell(row=row, column=4, value=company.representative or "")
+        ws.cell(row=row, column=5, value=company.industry_name or "")
+        ws.cell(row=row, column=6, value=company.credit_grade or "")
+        ws.cell(row=row, column=7, value=storage.latest_revenue(company))
 
     path = output_dir / f"{meta['label']}_목록.xlsx"
     wb.save(path)

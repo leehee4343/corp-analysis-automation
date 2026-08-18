@@ -441,11 +441,11 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
     <div class="page" id="categoryPage">
       <div class="hero">
         <div class="hero-t" id="categoryTitle">개인사업자</div>
-        <div class="hero-d">'추가메뉴' 참고자료 기준 영업 대상 목록입니다. PDF 분석이 끝난 기업은 상세정보를 확인할 수 있습니다.</div>
+        <div class="hero-d">PDF로 분석되어 저장된 기업 중, 법인형태별로 분류한 목록입니다.</div>
       </div>
       <div class="content">
         <div class="fbar">
-          <input id="categorySearchInput" placeholder="기업명 / 대표자명 / 사업자·법인등록번호 검색">
+          <input id="categorySearchInput" placeholder="기업명 / 대표자명 / 사업자번호 검색">
           <div class="sp"></div>
           <button class="btn pri" id="btnCategoryExport">📥 엑셀 다운로드</button>
         </div>
@@ -453,8 +453,8 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
         <div class="mv">
           <table class="mt">
             <thead><tr>
-              <th>No</th><th>기업체명</th><th>대표자명</th><th>업종</th><th>주소</th>
-              <th>상태</th><th>기업등급</th><th class="num">매출액</th><th></th>
+              <th>No</th><th>기업체명</th><th>대표자명</th><th>업종</th><th>사업자번호</th>
+              <th>신용등급</th><th class="num">매출액(백만)</th><th>재무진단</th><th></th>
             </tr></thead>
             <tbody id="categoryTableBody"><tr><td colspan="9" class="loading">불러오는 중…</td></tr></tbody>
           </table>
@@ -976,18 +976,12 @@ function renderCategoryTable(items){
       <td>${c.no}</td>
       <td style="font-weight:700;">${escapeHtml(c.company_name)}</td>
       <td>${escapeHtml(c.representative || '-')}</td>
-      <td>${escapeHtml(c.industry || '-')}</td>
-      <td>${escapeHtml(c.address || '-')}</td>
-      <td>${c.analyzed ? '<span class="bdg b-gr">분석완료</span>' : '<span class="bdg b-gy">미분석</span>'}</td>
-      <td>${c.analyzed && c.credit_grade
-        ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>`
-        : (c.credit_grade_ref ? `<span class="bdg b-gy">${escapeHtml(c.credit_grade_ref)}</span>` : '<span class="bdg b-gy">—</span>')}
-      </td>
-      <td class="num">${c.analyzed ? fmtNum(c.revenue_latest) : escapeHtml(c.revenue_ref || '—')}</td>
-      <td>${c.analyzed
-        ? `<button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>`
-        : `<button class="btn sm" onclick="showPage('upload', document.getElementById('nvUpload'))">PDF 업로드</button>`}
-      </td>
+      <td>${escapeHtml(c.industry_name || '-')}</td>
+      <td>${escapeHtml(c.business_no)}</td>
+      <td>${c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
+      <td class="num">${fmtNum(c.revenue_latest)}</td>
+      <td>${c.diagnosis_summary ? `<span class="bdg ${diagBadgeClass(c.diagnosis_summary)}">${escapeHtml(c.diagnosis_summary)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
+      <td><button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button></td>
     </tr>
   `).join('');
 }
