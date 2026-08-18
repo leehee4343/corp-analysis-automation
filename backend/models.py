@@ -60,6 +60,23 @@ class Company(BaseModel):
     source_pdf: str | None = None
     page_count: int = 0
 
+    # ===== PDF 전체 추출 (사용자 요청, PLAN.md 참고) =====
+    credit_info: dict[str, str | None] = Field(default_factory=dict)
+    certifications: dict[str, str] = Field(default_factory=dict)
+    ip_rights: dict[str, str] = Field(default_factory=dict)
+    relationship_existence: dict[str, str] = Field(default_factory=dict)
+    ledger_detail: dict[str, dict[str, YearlyValues]] = Field(default_factory=dict)
+    """재무상태표/손익계산서/현금흐름표/자본변동표/이익잉여금처분계산서/제조원가명세서 전체
+    계정과목. 표 이름(예: "재무상태표") -> {계정명: {연도: 값}}."""
+    ratio_detail: dict[str, dict[str, YearlyValues]] = Field(default_factory=dict)
+    """성장성/수익성/안정성/활동성/생산성 카테고리 -> {비율명: {연도: 값}}."""
+    diagnosis_commentary: str | None = None
+    personal_info: dict[str, str] = Field(default_factory=dict)
+    soft_sections: dict[str, str | None] = Field(default_factory=dict)
+    """연혁/사업목적/종합의견/경영진현황/주식소유현황/주요주주현황/관계회사현황/사업장현황/
+    구매처현황/판매처현황/매출구성 — 완전한 표 구조화 대신 원문 텍스트로 보존(데이터
+    없으면 None)."""
+
     parsed_at: datetime
     issues: list[ValidationIssue] = Field(default_factory=list)
 

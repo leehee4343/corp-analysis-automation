@@ -31,7 +31,21 @@ def test_generate_excel_creates_file_with_expected_sheets(tmp_path):
     assert path.name == "옥산농원_기업종합보고서.xlsx"
 
     wb = load_workbook(path)
-    assert wb.sheetnames == ["요약", "재무제표", "업계비교"]
+    # ledger_detail/ratio_detail 시트는 데이터가 있을 때만 추가되는데, 이 샘플엔 없음
+    assert wb.sheetnames == ["요약", "재무제표", "업계비교", "신용정보・인증", "기타정보"]
+
+
+def test_generate_excel_adds_detail_sheets_when_data_present(tmp_path):
+    company = _sample_company()
+    company.ledger_detail = {"재무상태표": {"자산(*)": {"2023": 3943892, "2024": 3999727, "2025": 4366652}}}
+    company.ratio_detail = {"안정성": {"부채비율": {"2023": 770.81, "2024": 351.75, "2025": 313.37}}}
+    path = generate_excel(company, output_dir=tmp_path)
+
+    wb = load_workbook(path)
+    assert "재무제표(상세)" in wb.sheetnames
+    assert "재무비율(상세)" in wb.sheetnames
+    values = [cell.value for row in wb["재무제표(상세)"].iter_rows() for cell in row if cell.value is not None]
+    assert 3943892 in values
 
 
 def test_summary_sheet_contains_key_values(tmp_path):

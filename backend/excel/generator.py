@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
 from ..models import Company
@@ -156,6 +156,97 @@ def _build_industry_sheet(ws: Worksheet, company: Company) -> None:
         row += 1
 
 
+def _build_ledger_detail_sheet(ws: Worksheet, ledger_detail: dict[str, dict[str, dict[str, float | None]]]) -> None:
+    """재무상태표/손익계산서/현금흐름표/자본변동표/이익잉여금처분계산서/제조원가명세서
+    전체 계정과목 (단위: 천원, 요약 시트의 반올림된 백만원 단위와 다름에 유의)."""
+    ws.column_dimensions["A"].width = 28
+    for col in "BCD":
+        ws.column_dimensions[col].width = 14
+    row = 1
+    for table_name, items in ledger_detail.items():
+        if not items:
+            continue
+        ws.cell(row=row, column=1, value=f"{table_name} (천원)").font = _TITLE_FONT
+        row += 2
+        row = _yearly_table(ws, row, items)
+
+
+def _build_ratio_detail_sheet(ws: Worksheet, ratio_detail: dict[str, dict[str, dict[str, float | None]]]) -> None:
+    """성장성/수익성/안정성/활동성/생산성 카테고리별 재무비율 상세(요약 시트의 12개보다
+    훨씬 많은 80~140여 개 지표)."""
+    ws.column_dimensions["A"].width = 26
+    for col in "BCD":
+        ws.column_dimensions[col].width = 12
+    row = 1
+    ws.cell(row=row, column=1, value="재무비율 상세 (%)").font = _TITLE_FONT
+    row += 2
+    for category in ("성장성", "수익성", "안정성", "활동성", "생산성"):
+        items = ratio_detail.get(category)
+        if not items:
+            continue
+        row = _section_title(ws, row, category, span=4)
+        row = _yearly_table(ws, row, items)
+
+
+def _build_credit_info_sheet(ws: Worksheet, company: Company) -> None:
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["B"].width = 42
+
+    row = 1
+    ws.cell(row=row, column=1, value="신용정보・인증 현황").font = _TITLE_FONT
+    row += 2
+
+    row = _section_title(ws, row, "신용정보", span=2)
+    for label, value in company.credit_info.items():
+        row = _kv_row(ws, row, label, value)
+    row += 1
+
+    row = _section_title(ws, row, "기업인증", span=2)
+    for label, value in company.certifications.items():
+        row = _kv_row(ws, row, label, value)
+    row += 1
+
+    row = _section_title(ws, row, "산업재산권", span=2)
+    for label, value in company.ip_rights.items():
+        row = _kv_row(ws, row, label, value)
+
+
+_PERSONAL_INFO_LABELS_KO = {"name_position": "성명/직위", "birth_gender": "생년월일/성별"}
+
+
+def _build_other_info_sheet(ws: Worksheet, company: Company) -> None:
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["B"].width = 90
+
+    row = 1
+    ws.cell(row=row, column=1, value="기타 정보").font = _TITLE_FONT
+    row += 2
+
+    row = _section_title(ws, row, "대표자 인적사항", span=2)
+    for key, value in company.personal_info.items():
+        row = _kv_row(ws, row, _PERSONAL_INFO_LABELS_KO.get(key, key), value)
+    row += 1
+
+    if company.diagnosis_commentary:
+        row = _section_title(ws, row, "재무진단 분석의견", span=2)
+        cell = ws.cell(row=row, column=1, value=company.diagnosis_commentary)
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+        ws.row_dimensions[row].height = 60
+        row += 2
+
+    row = _section_title(ws, row, "주요주주 / 관계회사 / 거래처 현황", span=2)
+    for label, value in company.relationship_existence.items():
+        row = _kv_row(ws, row, label, value)
+    row += 1
+
+    row = _section_title(ws, row, "기타 (연혁 · 경영진현황 · 사업장현황 등)", span=2)
+    for label, value in company.soft_sections.items():
+        cell_row = row
+        row = _kv_row(ws, row, label, value if value else "데이터 없음")
+        ws.cell(row=cell_row, column=2).alignment = Alignment(wrap_text=True, vertical="top")
+
+
 def generate_excel(company: Company, output_dir: Path | None = None) -> Path:
     output_dir = output_dir or OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -165,6 +256,12 @@ def generate_excel(company: Company, output_dir: Path | None = None) -> Path:
     wb.active.title = "요약"
     _build_financials_sheet(wb.create_sheet("재무제표"), company)
     _build_industry_sheet(wb.create_sheet("업계비교"), company)
+    if company.ledger_detail:
+        _build_ledger_detail_sheet(wb.create_sheet("재무제표(상세)"), company.ledger_detail)
+    if company.ratio_detail:
+        _build_ratio_detail_sheet(wb.create_sheet("재무비율(상세)"), company.ratio_detail)
+    _build_credit_info_sheet(wb.create_sheet("신용정보・인증"), company)
+    _build_other_info_sheet(wb.create_sheet("기타정보"), company)
 
     filename = f"{_sanitize_filename(company.company_name)}_기업종합보고서.xlsx"
     path = output_dir / filename

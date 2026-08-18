@@ -69,6 +69,47 @@ def test_peer_comparison(parsed):
     assert parsed.peer_comparison["상위25%"]["매출액"] == 9968
 
 
+def test_credit_info_and_certifications(parsed):
+    """사용자 요청으로 PDF 전체 내용을 뽑도록 확장(PLAN.md 참고) — 신용정보/인증/지재권."""
+    assert parsed.credit_info["행정처분정보"] == "해당사항없음"
+    assert parsed.credit_info["당좌개설/카드발급정보"] == "1건 2025-03-05"
+    assert parsed.certifications == {
+        "벤처": "미인증", "이노비즈": "미인증", "메인비즈": "미인증",
+        "연구개발전담부서": "미인증", "부설연구소": "미인증",
+    }
+    assert parsed.ip_rights == {"특허": "-", "실용신안": "-", "디자인": "-", "상표권": "-"}
+
+
+def test_ledger_detail_full_line_items(parsed):
+    """재무상태표/손익계산서 전체 계정과목(요약표보다 훨씬 상세) — 3페이지 MY재무Data
+    요약표의 열 제목("재무상태표"/"손익계산서")과 헷갈리지 않고 12/15페이지의 진짜 상세
+    표를 찾아야 한다."""
+    balance = parsed.ledger_detail["재무상태표"]
+    assert balance["자산(*)"] == {"2023": 3943892, "2024": 3999727, "2025": 4366652}
+    assert len(balance) > 40  # 요약표는 4개 항목뿐이지만 상세표는 수십 개
+
+    income = parsed.ledger_detail["손익계산서"]
+    assert income["매출액(*)"] == {"2023": 7154489, "2024": 7240823, "2025": 8306768}
+
+
+def test_ratio_detail_grouped_by_category(parsed):
+    ratio = parsed.ratio_detail
+    assert set(ratio.keys()) == {"성장성", "수익성", "안정성", "활동성", "생산성"}
+    assert ratio["안정성"]["부채비율"] == {"2023": 770.81, "2024": 351.75, "2025": 313.37}
+    assert sum(len(v) for v in ratio.values()) > 100  # 요약표는 12개뿐, 상세표는 100개 이상
+
+
+def test_diagnosis_commentary_full_text_captured(parsed):
+    assert parsed.diagnosis_commentary is not None
+    assert "양호한성장역량을보유하고있음" in parsed.diagnosis_commentary
+    assert "조회일시" not in parsed.diagnosis_commentary  # 페이지 머리말이 안 섞여야 함
+
+
+def test_soft_sections_no_data_becomes_none_but_populated_stays(parsed):
+    assert parsed.soft_sections["종합의견"] is None  # "조회된자료가없습니다."만 있던 경우
+    assert "김종원" in parsed.soft_sections["주식소유현황"]  # 실제 내용이 있는 경우
+
+
 def test_section_failure_does_not_abort_whole_parse(monkeypatch):
     """한 섹션 파싱이 예외를 던져도 나머지 필드는 그대로 추출되어야 한다
     (사용자 버그 리포트 대응 — 부분 실패 시 통째로 실패시키지 않기로 함, PLAN.md 참고)."""

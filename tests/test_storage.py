@@ -35,6 +35,31 @@ def test_save_and_load_roundtrip(tmp_path, monkeypatch):
     assert loaded.issues == []
 
 
+def test_full_extraction_fields_survive_save_and_load(tmp_path, monkeypatch):
+    """PDF 전체 추출 필드(사용자 요청, PLAN.md 참고)가 JSON 저장/로딩을 거쳐도 보존되는지."""
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    parsed = _sample_parsed(
+        credit_info={"행정처분정보": "해당사항없음"},
+        certifications={"벤처": "미인증"},
+        ledger_detail={"재무상태표": {"자산(*)": {"2023": 3943892, "2024": 3999727, "2025": 4366652}}},
+        ratio_detail={"안정성": {"부채비율": {"2023": 770.81, "2024": 351.75, "2025": 313.37}}},
+        diagnosis_commentary="동사의매출액증가율과영업이익증가율모두양호함",
+        personal_info={"name_position": "김종원/대표자"},
+        soft_sections={"종합의견": None, "주식소유현황": "대표자 김종원"},
+    )
+    company = storage.build_company(parsed)
+    storage.save_company(company)
+
+    loaded = storage.load_company("412-93-13689")
+    assert loaded.credit_info == {"행정처분정보": "해당사항없음"}
+    assert loaded.ledger_detail["재무상태표"]["자산(*)"]["2023"] == 3943892
+    assert loaded.ratio_detail["안정성"]["부채비율"]["2025"] == 313.37
+    assert loaded.diagnosis_commentary == "동사의매출액증가율과영업이익증가율모두양호함"
+    assert loaded.personal_info == {"name_position": "김종원/대표자"}
+    assert loaded.soft_sections["종합의견"] is None
+    assert loaded.soft_sections["주식소유현황"] == "대표자 김종원"
+
+
 def test_missing_field_creates_issue(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
     parsed = _sample_parsed(address=None, missing_fields=["address"])
