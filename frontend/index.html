@@ -372,7 +372,7 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
     <div class="page" id="listPage">
       <div class="hero">
         <div class="hero-t">기업 목록</div>
-        <div class="hero-d">영업 대상 전체 기업(검색조회 목록)을 검색·필터링합니다. PDF 분석이 끝난 기업은 상세정보와 엑셀을 확인할 수 있습니다.</div>
+        <div class="hero-d">PDF로 분석되어 저장된 전체 기업을 검색·필터링하고 엑셀을 내려받습니다.</div>
       </div>
       <div class="content">
         <div class="fbar">
@@ -399,8 +399,8 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
         <div class="mv">
           <table class="mt">
             <thead><tr>
-              <th>No</th><th>기업체명</th><th>대표자명</th><th>업종</th><th>법인등록번호</th>
-              <th>상태</th><th>신용등급</th><th class="num">매출액(백만)</th><th></th>
+              <th>기업명</th><th>사업자번호</th><th>업종</th><th class="num">매출액(백만)</th>
+              <th class="num">영업이익(백만)</th><th>신용등급</th><th>재무진단</th><th>등록/업데이트</th><th></th>
             </tr></thead>
             <tbody id="companyTableBody"><tr><td colspan="9" class="loading">불러오는 중…</td></tr></tbody>
           </table>
@@ -819,8 +819,9 @@ function buildListParams(state){
 
 async function populateIndustryOptions(){
   try{
-    const industries = await apiGet('/api/master-list/industries');
+    const summary = await apiGet('/api/dashboard/summary');
     const select = document.getElementById('filterIndustry');
+    const industries = Object.keys(summary.by_industry).sort();
     const current = select.value;
     select.innerHTML = '<option value="">업종 전체</option>' + industries.map(i => `<option value="${escapeHtml(i)}">${escapeHtml(i)}</option>`).join('');
     select.value = current;
@@ -834,7 +835,7 @@ async function loadList(){
   tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중…</td></tr>';
   try{
     const params = buildListParams(listState);
-    const data = await apiGet(`/api/master-list?${params}`);
+    const data = await apiGet(`/api/companies?${params}`);
     renderCompanyTable(data.items);
     renderPagination(data.total, data.page, data.page_size);
     const shown = data.items.length;
@@ -851,17 +852,17 @@ function renderCompanyTable(items){
   if(!items.length){ tbody.innerHTML = '<tr><td colspan="9" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
   tbody.innerHTML = items.map(c => `
     <tr>
-      <td>${c.no}</td>
       <td style="font-weight:700;">${escapeHtml(c.company_name)}</td>
-      <td>${escapeHtml(c.representative || '-')}</td>
-      <td>${escapeHtml(c.industry || '-')}</td>
-      <td>${escapeHtml(c.corp_reg_no || '-')}</td>
-      <td>${c.analyzed ? '<span class="bdg b-gr">분석완료</span>' : '<span class="bdg b-gy">미분석</span>'}</td>
-      <td>${c.analyzed && c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
-      <td class="num">${c.analyzed ? fmtNum(c.revenue_latest) : '—'}</td>
-      <td>${c.analyzed
-        ? `<div style="display:flex; gap:6px;"><button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button><button class="btn sm" onclick="window.location='/api/companies/${c.business_no}/excel'">엑셀</button></div>`
-        : `<button class="btn sm" onclick="showPage('upload', document.getElementById('nvUpload'))">PDF 업로드</button>`}
+      <td>${escapeHtml(c.business_no)}</td>
+      <td>${escapeHtml(c.industry_name || '-')}</td>
+      <td class="num">${fmtNum(c.revenue_latest)}</td>
+      <td class="num">${fmtNum(c.operating_profit_latest)}</td>
+      <td>${c.credit_grade ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
+      <td>${c.diagnosis_summary ? `<span class="bdg ${diagBadgeClass(c.diagnosis_summary)}">${escapeHtml(c.diagnosis_summary)}</span>` : '<span class="bdg b-gy">—</span>'}</td>
+      <td>${fmtDate(c.parsed_at)}</td>
+      <td style="display:flex; gap:6px;">
+        <button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>
+        <button class="btn sm" onclick="window.location='/api/companies/${c.business_no}/excel'">엑셀</button>
       </td>
     </tr>
   `).join('');
@@ -887,10 +888,8 @@ async function exportAllExcel(){
   btn.textContent = '내보내는 중…';
   try{
     const params = buildListParams({...listState, page:1, pageSize:1000});
-    params.set('analyzed_only', 'true');
-    const data = await apiGet(`/api/master-list?${params}`);
+    const data = await apiGet(`/api/companies?${params}`);
     for(const item of data.items){
-      if(!item.business_no) continue;
       const a = document.createElement('a');
       a.href = `/api/companies/${item.business_no}/excel`;
       a.setAttribute('download', '');
