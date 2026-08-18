@@ -184,6 +184,21 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
 /* ===== loading / empty states ===== */
 .loading, .empty{color:var(--sub); font-size:13px; padding:24px; text-align:center;}
 
+/* ===== collapsible detail panel ===== */
+.dtl{border:1px solid var(--line); border-radius:12px; background:var(--bg2); margin-bottom:10px; overflow:hidden;}
+.dtl summary{padding:12px 16px; font-weight:700; font-size:13px; cursor:pointer; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+.dtl summary::-webkit-details-marker{display:none;}
+.dtl summary .cnt{font-weight:600; font-size:11px; color:var(--sub); flex:none;}
+.dtl summary .arrow{color:var(--blue); flex:none; transition:transform .15s;}
+.dtl[open] summary .arrow{transform:rotate(90deg);}
+.dtl summary:hover{background:var(--bg);}
+.dtl-body{padding:2px 16px 16px;}
+.dtl-body table.mt{font-size:12px;}
+.kvline{display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-size:12px;}
+.kvline:last-child{border-bottom:none;}
+.kvline .k{flex:none; width:180px; color:var(--sub); font-weight:700;}
+.kvline .v{flex:1; word-break:break-all; white-space:pre-wrap;}
+
 ::-webkit-scrollbar{width:8px; height:8px;}
 ::-webkit-scrollbar-thumb{background:#cfd6e0; border-radius:8px;}
 </style>
@@ -490,6 +505,34 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
               <tbody id="balanceTableBody"></tbody>
             </table>
           </div>
+        </div>
+
+        <div class="sec" id="diagnosisCommentarySec" style="display:none;">
+          <div class="sec-t"><div class="n">5</div><h3>재무진단 분석의견</h3></div>
+          <div class="gc" id="diagnosisCommentaryBody" style="font-size:13px; line-height:1.7; color:var(--text);"></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t"><div class="n">6</div><h3>신용정보 · 인증 현황</h3></div>
+          <div class="gv cols3" id="creditInfoGrid"></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t"><div class="n">7</div><h3>재무제표 상세 (천원)</h3></div>
+          <div class="sec-sub" style="margin-bottom:12px;">항목을 클릭하면 전체 계정과목이 펼쳐집니다.</div>
+          <div id="ledgerDetailContainer"></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t"><div class="n">8</div><h3>재무비율 상세 (%)</h3></div>
+          <div class="sec-sub" style="margin-bottom:12px;">성장성/수익성/안정성/활동성/생산성 카테고리별 세부 지표입니다.</div>
+          <div id="ratioDetailContainer"></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t"><div class="n">9</div><h3>기업 상세 정보</h3></div>
+          <div class="sec-sub" style="margin-bottom:12px;">대표자 인적사항, 주요주주・관계회사・거래처, 연혁 등 원문 그대로입니다.</div>
+          <div id="otherInfoContainer"></div>
         </div>
 
       </div>
@@ -1050,6 +1093,105 @@ function renderBalanceTable(c){
   `).join('');
 }
 
+function renderDiagnosisCommentary(commentary){
+  const sec = document.getElementById('diagnosisCommentarySec');
+  if(!commentary){ sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  document.getElementById('diagnosisCommentaryBody').textContent = commentary;
+}
+
+function renderCreditInfo(c){
+  const groups = [
+    ['신용정보', Object.entries(c.credit_info || {})],
+    ['기업인증', Object.entries(c.certifications || {})],
+    ['산업재산권', Object.entries(c.ip_rights || {})],
+  ].filter(([, entries]) => entries.length);
+
+  const grid = document.getElementById('creditInfoGrid');
+  if(!groups.length){ grid.innerHTML = '<div class="empty">신용정보・인증 데이터가 없습니다.</div>'; return; }
+  grid.innerHTML = groups.map(([title, entries]) => `
+    <div class="gc">
+      <div style="font-weight:800; font-size:13px; margin-bottom:10px;">${escapeHtml(title)}</div>
+      ${entries.map(([k, v]) => `<div class="kvline"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v || '-')}</span></div>`).join('')}
+    </div>
+  `).join('');
+}
+
+function _yearlyDetailTable(items){
+  const yearSet = new Set();
+  Object.values(items).forEach(v => Object.keys(v).forEach(y => yearSet.add(y)));
+  const years = Array.from(yearSet).sort();
+  const rows = Object.entries(items).map(([label, vals]) => `
+    <tr><td class="phn">${escapeHtml(label)}</td>${years.map(y => `<td class="num">${fmtNum(vals[y])}</td>`).join('')}</tr>
+  `).join('');
+  return `<table class="mt"><thead><tr><th class="phn">구분</th>${years.map(y => `<th class="num">${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function _detailsPanel(title, countLabel, bodyHtml){
+  return `<details class="dtl">
+    <summary>
+      <span>${escapeHtml(title)}</span>
+      <span style="display:flex; align-items:center; gap:6px;">${countLabel ? `<span class="cnt">${escapeHtml(countLabel)}</span>` : ''}<span class="arrow">▸</span></span>
+    </summary>
+    <div class="dtl-body">${bodyHtml}</div>
+  </details>`;
+}
+
+function renderLedgerDetail(ledgerDetail){
+  const container = document.getElementById('ledgerDetailContainer');
+  const entries = Object.entries(ledgerDetail || {});
+  if(!entries.length){ container.innerHTML = '<div class="empty">재무제표 상세 데이터가 없습니다.</div>'; return; }
+  container.innerHTML = entries.map(([table, items]) =>
+    _detailsPanel(table, `${Object.keys(items).length}개 계정`, _yearlyDetailTable(items))
+  ).join('');
+}
+
+function renderRatioDetail(ratioDetail){
+  const container = document.getElementById('ratioDetailContainer');
+  const order = ['성장성', '수익성', '안정성', '활동성', '생산성'];
+  const entries = order
+    .filter(cat => ratioDetail && ratioDetail[cat] && Object.keys(ratioDetail[cat]).length)
+    .map(cat => [cat, ratioDetail[cat]]);
+  if(!entries.length){ container.innerHTML = '<div class="empty">재무비율 상세 데이터가 없습니다.</div>'; return; }
+  container.innerHTML = entries.map(([cat, items]) =>
+    _detailsPanel(cat, `${Object.keys(items).length}개 지표`, _yearlyDetailTable(items))
+  ).join('');
+}
+
+const PERSONAL_INFO_LABELS_KO = {name_position: '성명/직위', birth_gender: '생년월일/성별'};
+const SOFT_SECTION_ORDER = [
+  '연혁', '사업목적', '종합의견', '경영진현황', '주식소유현황', '주요주주현황',
+  '관계회사현황', '사업장현황', '구매처현황', '판매처현황', '매출구성',
+];
+
+function _kvBlockHtml(entries){
+  return entries.map(([k, v]) => `<div class="kvline"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v || '-')}</span></div>`).join('');
+}
+
+function renderOtherInfo(c){
+  const container = document.getElementById('otherInfoContainer');
+  const panels = [];
+
+  const personalEntries = Object.entries(c.personal_info || {}).map(([k, v]) => [PERSONAL_INFO_LABELS_KO[k] || k, v]);
+  if(personalEntries.length){
+    panels.push(_detailsPanel('대표자 인적사항', '', _kvBlockHtml(personalEntries)));
+  }
+
+  const relEntries = Object.entries(c.relationship_existence || {});
+  if(relEntries.length){
+    panels.push(_detailsPanel('주요주주 · 관계회사 · 거래처', '', _kvBlockHtml(relEntries)));
+  }
+
+  SOFT_SECTION_ORDER.forEach(label => {
+    const value = c.soft_sections ? c.soft_sections[label] : undefined;
+    if(value === undefined) return;
+    const body = `<div style="font-size:12px; line-height:1.7; white-space:pre-wrap;">${escapeHtml(value || '데이터 없음')}</div>`;
+    panels.push(_detailsPanel(label, '', body));
+  });
+
+  container.innerHTML = panels.length ? panels.join('') : '<div class="empty">추가 정보가 없습니다.</div>';
+}
+
 async function loadDetail(businessNo){
   document.getElementById('detailKpis').innerHTML = '<div class="loading">불러오는 중…</div>';
   try{
@@ -1067,6 +1209,11 @@ async function loadDetail(businessNo){
     renderPeerBars(c.peer_comparison);
     renderRankBadge(c.industry_rank);
     renderBalanceTable(c);
+    renderDiagnosisCommentary(c.diagnosis_commentary);
+    renderCreditInfo(c);
+    renderLedgerDetail(c.ledger_detail);
+    renderRatioDetail(c.ratio_detail);
+    renderOtherInfo(c);
     document.getElementById('btnDownloadExcel').onclick = () => { window.location = `/api/companies/${encodeURIComponent(businessNo)}/excel`; };
     document.getElementById('btnViewSourcePdf').onclick = () => { window.open(`/api/companies/${encodeURIComponent(businessNo)}/source-pdf`, '_blank'); };
     const sourceName = (c.source_pdf || '').split(/[\\/]/).pop() || '-';
