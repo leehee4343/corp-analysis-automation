@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from .routers import companies, mailing, master_list, upload, validation
+from .routers import category_list, companies, mailing, master_list, upload, validation
 
 FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
 
@@ -15,6 +15,7 @@ app.include_router(upload.router)
 app.include_router(validation.router)
 app.include_router(mailing.router)
 app.include_router(master_list.router)
+app.include_router(category_list.router)
 
 
 @app.get("/")

@@ -142,6 +142,34 @@ class MasterList(BaseModel):
     items: list[MasterListItem]
 
 
+class CategoryListItem(BaseModel):
+    """'추가메뉴' xlsx(개인사업자/일반법인/농업회사법인/영농조합법인) 한 건.
+    credit_grade_ref/revenue_ref는 참고자료 시트 자체에 적힌 값(원문 그대로, 형식이
+    제각각이라 가공하지 않음) — 우리 PDF 분석이 끝난 기업이면 analyzed=True와 함께
+    business_no/credit_grade/revenue_latest에 우리 쪽 파싱 데이터가 채워진다."""
+    no: int
+    company_name: str
+    representative: str | None = None
+    address: str | None = None
+    industry: str | None = None
+    reg_no: str | None = None
+    credit_grade_ref: str | None = None
+    revenue_ref: str | None = None
+    analyzed: bool
+    business_no: str | None = None
+    credit_grade: str | None = None
+    revenue_latest: float | None = None
+
+
+class CategoryList(BaseModel):
+    category: str
+    label: str
+    total: int
+    page: int
+    page_size: int
+    items: list[CategoryListItem]
+
+
 class MailingListEntry(BaseModel):
     no: int
     business_no: str

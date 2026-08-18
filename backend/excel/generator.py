@@ -13,6 +13,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
+from .. import category_list
 from ..models import Company
 
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "outputs"
@@ -296,5 +297,47 @@ def generate_mailing_list_excel(companies: list[Company], output_dir: Path | Non
         ws.column_dimensions[col].width = width
 
     path = output_dir / "우편발송용_목록.xlsx"
+    wb.save(path)
+    return path
+
+
+_CATEGORY_EXPORT_HEADERS = [
+    "No.", "기업체명", "대표자명", "주소/연락처", "대표자 연령", "가업승계 여부", "형태",
+    "업종", "사업자·법인등록번호", "설립년월", "상세업종", "기업등급", "주채권은행",
+    "매출액", "영업이익", "당기순이익", "보험료", "배당유무", "법인경영체",
+    "법인세감면", "기타",
+]
+
+_CATEGORY_EXPORT_FIELDS = (
+    "no", "company_name", "representative", "address", "representative_age",
+    "succession", "biz_type", "industry", "reg_no", "founded_date",
+    "detail_industry", "credit_grade", "main_bank", "revenue", "operating_profit",
+    "net_income", "insurance_premium", "dividend", "corp_management",
+    "tax_reduction", "etc",
+)
+
+
+def generate_category_excel(category: str, output_dir: Path | None = None) -> Path:
+    """'추가메뉴' 참고자료의 한 시트(카테고리)를 원본 컬럼 그대로 내보낸다."""
+    meta = category_list.CATEGORIES[category]
+    rows = category_list.load_category_rows(category)
+
+    output_dir = output_dir or OUTPUT_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = meta["label"]
+
+    for col, text in enumerate(_CATEGORY_EXPORT_HEADERS, start=1):
+        cell = ws.cell(row=1, column=col, value=text)
+        cell.font = _HEADER_FONT
+        cell.fill = _HEADER_FILL
+
+    for r, row in enumerate(rows, start=2):
+        for c, field in enumerate(_CATEGORY_EXPORT_FIELDS, start=1):
+            ws.cell(row=r, column=c, value=row.get(field))
+
+    path = output_dir / f"{meta['label']}_목록.xlsx"
     wb.save(path)
     return path

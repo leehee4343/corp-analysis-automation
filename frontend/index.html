@@ -244,6 +244,29 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
     </div>
 
     <div class="side-div"></div>
+    <div class="side-lbl">영업 대상 분류</div>
+    <div class="nv" id="nvCatIndividual" onclick="showPage('category', this, 'individual')">
+      <div class="nv-num" style="background:var(--amber-lt); color:var(--amber-dk);">🧑‍🌾</div>
+      <div class="nv-lbl">개인사업자</div>
+      <div class="nv-dot" style="background:var(--amber)"></div>
+    </div>
+    <div class="nv" id="nvCatGeneralCorp" onclick="showPage('category', this, 'general_corp')">
+      <div class="nv-num" style="background:var(--amber-lt); color:var(--amber-dk);">🏭</div>
+      <div class="nv-lbl">일반법인</div>
+      <div class="nv-dot" style="background:var(--amber)"></div>
+    </div>
+    <div class="nv" id="nvCatAgriCorp" onclick="showPage('category', this, 'agri_corp')">
+      <div class="nv-num" style="background:var(--amber-lt); color:var(--amber-dk);">🌾</div>
+      <div class="nv-lbl">농업회사법인</div>
+      <div class="nv-dot" style="background:var(--amber)"></div>
+    </div>
+    <div class="nv" id="nvCatFarmPartnership" onclick="showPage('category', this, 'farm_partnership')">
+      <div class="nv-num" style="background:var(--amber-lt); color:var(--amber-dk);">🤝</div>
+      <div class="nv-lbl">영농조합법인</div>
+      <div class="nv-dot" style="background:var(--amber)"></div>
+    </div>
+
+    <div class="side-div"></div>
     <div class="side-lbl">기업 상세</div>
     <div class="nv" id="nvDetail" style="display:none;" onclick="showPage('detail', this)">
       <div class="nv-num" style="background:var(--purple-lt); color:#5b3fc7;">📄</div>
@@ -412,6 +435,36 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
         </div>
       </div>
       <div class="stbar"><span>기업분석 자동화 시스템 · 로컬 전용 (LLM API 미사용)</span><span id="mailingStatusTotal">총 0개 기업</span></div>
+    </div>
+
+    <!-- ============ PAGE: 영업 대상 분류(개인사업자/일반법인/농업회사법인/영농조합법인) ============ -->
+    <div class="page" id="categoryPage">
+      <div class="hero">
+        <div class="hero-t" id="categoryTitle">개인사업자</div>
+        <div class="hero-d">'추가메뉴' 참고자료 기준 영업 대상 목록입니다. PDF 분석이 끝난 기업은 상세정보를 확인할 수 있습니다.</div>
+      </div>
+      <div class="content">
+        <div class="fbar">
+          <input id="categorySearchInput" placeholder="기업명 / 대표자명 / 사업자·법인등록번호 검색">
+          <div class="sp"></div>
+          <button class="btn pri" id="btnCategoryExport">📥 엑셀 다운로드</button>
+        </div>
+
+        <div class="mv">
+          <table class="mt">
+            <thead><tr>
+              <th>No</th><th>기업체명</th><th>대표자명</th><th>업종</th><th>주소</th>
+              <th>상태</th><th>기업등급</th><th class="num">매출액</th><th></th>
+            </tr></thead>
+            <tbody id="categoryTableBody"><tr><td colspan="9" class="loading">불러오는 중…</td></tr></tbody>
+          </table>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--sub);">
+          <span id="categoryTotalInfo">0개 중 0–0 표시</span>
+          <div style="display:flex; gap:6px;" id="categoryPagination"></div>
+        </div>
+      </div>
+      <div class="stbar"><span>기업분석 자동화 시스템 · 로컬 전용 (LLM API 미사용)</span><span id="categoryStatusTotal">총 0개 기업</span></div>
     </div>
 
     <!-- ============ PAGE 3: PDF 업로드 ============ -->
@@ -632,11 +685,16 @@ const AVATAR_PALETTE = [
 ];
 
 /* ===== 라우팅 ===== */
-const PAGE_MAP = { dash:'dashPage', list:'listPage', mailing:'mailingPage', upload:'uploadPage', detail:'detailPage', issue:'issuePage' };
+const PAGE_MAP = { dash:'dashPage', list:'listPage', mailing:'mailingPage', category:'categoryPage', upload:'uploadPage', detail:'detailPage', issue:'issuePage' };
 let currentBusinessNo = null;
+let currentCategory = null;
 
 function showPage(name, el, param){
   if(name === 'detail' && param) currentBusinessNo = param;
+  if(name === 'category' && param){
+    if(currentCategory !== param){ categoryState = {q:'', page:1, pageSize:10}; }
+    currentCategory = param;
+  }
   document.querySelectorAll('.main > .page').forEach(p => p.classList.remove('on'));
   document.getElementById(PAGE_MAP[name]).classList.add('on');
   document.querySelectorAll('.nv').forEach(n => n.classList.remove('on'));
@@ -646,6 +704,7 @@ function showPage(name, el, param){
   if(name === 'dash') loadDashboard();
   else if(name === 'list') loadList();
   else if(name === 'mailing') loadMailingList();
+  else if(name === 'category' && currentCategory) loadCategoryList();
   else if(name === 'issue') loadIssues();
   else if(name === 'detail' && currentBusinessNo) loadDetail(currentBusinessNo);
 }
@@ -872,6 +931,79 @@ async function loadMailingList(){
     tbody.innerHTML = `<tr><td colspan="5" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
+
+/* ===== 영업 대상 분류 (개인사업자/일반법인/농업회사법인/영농조합법인) ===== */
+const CATEGORY_META = {
+  individual: {label:'개인사업자'},
+  general_corp: {label:'일반법인'},
+  agri_corp: {label:'농업회사법인'},
+  farm_partnership: {label:'영농조합법인'},
+};
+let categoryState = { q:'', page:1, pageSize:10 };
+
+async function loadCategoryList(){
+  const meta = CATEGORY_META[currentCategory];
+  document.getElementById('categoryTitle').textContent = meta.label;
+  document.getElementById('categorySearchInput').value = categoryState.q;
+  document.getElementById('btnCategoryExport').onclick = () => {
+    window.location = `/api/category-list/${currentCategory}/excel`;
+  };
+
+  const tbody = document.getElementById('categoryTableBody');
+  tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중…</td></tr>';
+  try{
+    const params = new URLSearchParams();
+    if(categoryState.q) params.set('q', categoryState.q);
+    params.set('page', categoryState.page);
+    params.set('page_size', categoryState.pageSize);
+    const data = await apiGet(`/api/category-list/${currentCategory}?${params}`);
+    renderCategoryTable(data.items);
+    renderCategoryPagination(data.total, data.page, data.page_size);
+    const shown = data.items.length;
+    const startIdx = shown ? (data.page-1)*data.page_size + 1 : 0;
+    document.getElementById('categoryTotalInfo').textContent = `${data.total}개 중 ${startIdx}–${startIdx + shown - (shown?1:0)} 표시`;
+    document.getElementById('categoryStatusTotal').textContent = `총 ${data.total}개 기업`;
+  }catch(e){
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+function renderCategoryTable(items){
+  const tbody = document.getElementById('categoryTableBody');
+  if(!items.length){ tbody.innerHTML = '<tr><td colspan="9" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
+  tbody.innerHTML = items.map(c => `
+    <tr>
+      <td>${c.no}</td>
+      <td style="font-weight:700;">${escapeHtml(c.company_name)}</td>
+      <td>${escapeHtml(c.representative || '-')}</td>
+      <td>${escapeHtml(c.industry || '-')}</td>
+      <td>${escapeHtml(c.address || '-')}</td>
+      <td>${c.analyzed ? '<span class="bdg b-gr">분석완료</span>' : '<span class="bdg b-gy">미분석</span>'}</td>
+      <td>${c.analyzed && c.credit_grade
+        ? `<span class="bdg ${creditBadgeClass(c.credit_grade)}">${escapeHtml(c.credit_grade)}</span>`
+        : (c.credit_grade_ref ? `<span class="bdg b-gy">${escapeHtml(c.credit_grade_ref)}</span>` : '<span class="bdg b-gy">—</span>')}
+      </td>
+      <td class="num">${c.analyzed ? fmtNum(c.revenue_latest) : escapeHtml(c.revenue_ref || '—')}</td>
+      <td>${c.analyzed
+        ? `<button class="btn sm" onclick="viewDetail('${c.business_no}')">상세</button>`
+        : `<button class="btn sm" onclick="showPage('upload', document.getElementById('nvUpload'))">PDF 업로드</button>`}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderCategoryPagination(total, page, pageSize){
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const container = document.getElementById('categoryPagination');
+  let html = `<button class="btn sm" ${page<=1?'disabled':''} onclick="gotoCategoryPage(${page-1})">이전</button>`;
+  const start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+  for(let p=start; p<=end; p++){
+    html += `<button class="btn sm ${p===page?'pri':''}" onclick="gotoCategoryPage(${p})">${p}</button>`;
+  }
+  html += `<button class="btn sm" ${page>=totalPages?'disabled':''} onclick="gotoCategoryPage(${page+1})">다음</button>`;
+  container.innerHTML = html;
+}
+function gotoCategoryPage(p){ categoryState.page = p; loadCategoryList(); }
 
 /* ===== PDF 업로드 ===== */
 let uploadQueueItems = [];
@@ -1301,6 +1433,9 @@ function wireStaticHandlers(){
   document.getElementById('btnMailingExport').addEventListener('click', () => {
     window.location = '/api/mailing-list/excel';
   });
+  document.getElementById('categorySearchInput').addEventListener('input', debounce(e => {
+    categoryState.q = e.target.value; categoryState.page = 1; loadCategoryList();
+  }, 300));
 
   document.getElementById('headerSearch').addEventListener('keydown', e => {
     if(e.key === 'Enter'){
