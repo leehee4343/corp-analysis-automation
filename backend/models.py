@@ -119,6 +119,29 @@ class CompanyList(BaseModel):
     items: list[CompanyListItem]
 
 
+class MasterListItem(BaseModel):
+    """'검색조회 목록.xlsx'의 영업 대상 한 건. PDF 분석이 끝난 기업이면 analyzed=True와
+    함께 우리 쪽 파싱 데이터(business_no/credit_grade 등)가 채워진다."""
+    no: int
+    company_name: str
+    representative: str | None = None
+    biz_type: str | None = None
+    industry: str | None = None
+    corp_reg_no: str | None = None
+    analyzed: bool
+    business_no: str | None = None
+    credit_grade: str | None = None
+    revenue_latest: float | None = None
+    diagnosis_summary: str | None = None
+
+
+class MasterList(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[MasterListItem]
+
+
 class MailingListEntry(BaseModel):
     no: int
     business_no: str
