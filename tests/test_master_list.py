@@ -89,3 +89,22 @@ def test_master_list_industries_endpoint(client):
     res = client.get("/api/master-list/industries")
     assert res.status_code == 200
     assert res.json() == ["기타제조업", "양계업"]
+
+
+def test_malformed_xlsx_missing_expected_sheet_returns_empty_not_500(tmp_path, monkeypatch):
+    """파일은 있지만 '전체DB' 시트가 없는 경우(손상된 파일 등) — 500 대신 빈 목록."""
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    monkeypatch.setattr(upload_router, "UPLOADS_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(excel_generator, "OUTPUT_DIR", tmp_path / "outputs")
+
+    xlsx_path = tmp_path / "broken.xlsx"
+    wb = openpyxl.Workbook()
+    wb.active.append(["dummy"])
+    wb.save(xlsx_path)
+    monkeypatch.setattr(master_list, "MASTER_LIST_PATH", xlsx_path)
+    master_list._cache["key"] = None
+
+    client = TestClient(app)
+    res = client.get("/api/master-list")
+    assert res.status_code == 200
+    assert res.json()["total"] == 0

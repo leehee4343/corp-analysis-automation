@@ -39,6 +39,10 @@ def load_master_rows() -> list[dict]:
         return _cache["rows"]  # type: ignore[return-value]
 
     wb = openpyxl.load_workbook(MASTER_LIST_PATH, data_only=True)
+    if SHEET_NAME not in wb.sheetnames:
+        # 파일은 있지만 기대한 시트가 없는 경우(손상/형식 다른 파일 등) — 화면을 죽이는
+        # 대신 빈 목록으로 넘어간다. 파일이 정상으로 교체되면 mtime이 바뀌어 자동 재시도됨.
+        return []
     ws = wb[SHEET_NAME]
     rows: list[dict] = []
     no = 0
