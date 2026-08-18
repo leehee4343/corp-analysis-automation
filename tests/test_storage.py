@@ -118,3 +118,21 @@ def test_save_company_upserts_same_business_no(tmp_path, monkeypatch):
 
     assert storage.load_company("412-93-13689").company_name == "새이름"
     assert len(storage.list_companies()) == 1  # 중복 행 생기지 않음
+
+
+def test_delete_company_removes_record_and_allows_readd(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.save_company(storage.build_company(_sample_parsed()))
+
+    assert storage.delete_company("412-93-13689") is True
+    assert storage.load_company("412-93-13689") is None
+    assert storage.list_companies() == []
+
+    # 삭제 후 재업로드하면 다시 정상 등록된다.
+    storage.save_company(storage.build_company(_sample_parsed()))
+    assert storage.load_company("412-93-13689") is not None
+
+
+def test_delete_unknown_business_no_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    assert storage.delete_company("000-00-00000") is False

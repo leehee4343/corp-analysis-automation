@@ -81,6 +81,12 @@ def patch_company(business_no: str, update: CompanyUpdate):
     return company
 
 
+@router.delete("/companies/{business_no}", status_code=204)
+def delete_company(business_no: str):
+    if not storage.delete_company(business_no):
+        raise HTTPException(status_code=404, detail="등록되지 않은 사업자번호입니다.")
+
+
 @router.get("/dashboard/summary", response_model=DashboardSummary)
 def dashboard_summary():
     companies = storage.list_companies()

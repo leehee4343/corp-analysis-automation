@@ -183,6 +183,16 @@ def load_company(business_no: str) -> Company | None:
     return Company.model_validate_json(row[0])
 
 
+def delete_company(business_no: str) -> bool:
+    """DB 레코드만 지운다 — 원본 PDF(uploads/)는 그대로 남아있어 다시 업로드하면
+    재등록된다."""
+    conn = _get_conn()
+    with conn:
+        cursor = conn.execute("DELETE FROM companies WHERE business_no = ?", (business_no,))
+    conn.close()
+    return cursor.rowcount > 0
+
+
 def list_companies() -> list[Company]:
     conn = _get_conn()
     rows = conn.execute("SELECT data FROM companies ORDER BY business_no").fetchall()

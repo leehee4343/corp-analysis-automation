@@ -126,6 +126,20 @@ def test_patch_company_clears_matching_issue(client):
     assert body["issues"] == []
 
 
+def test_delete_company(client):
+    storage.save_company(_sample_company())
+
+    res = client.delete("/api/companies/412-93-13689")
+    assert res.status_code == 204
+    assert client.get("/api/companies/412-93-13689").status_code == 404
+    assert client.get("/api/companies").json()["total"] == 0
+
+
+def test_delete_company_not_found(client):
+    res = client.delete("/api/companies/000-00-00000")
+    assert res.status_code == 404
+
+
 def test_issues_endpoint(client):
     storage.save_company(_sample_company(issues=[
         ValidationIssue(type="missing_field", field="address", message="주소 없음"),

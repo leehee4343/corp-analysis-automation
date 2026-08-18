@@ -602,6 +602,12 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
           <div id="otherInfoContainer"></div>
         </div>
 
+        <div class="sec" style="border:1px solid var(--red-md); background:var(--red-lt);">
+          <div style="font-weight:800; font-size:13px; color:var(--red-dk); margin-bottom:6px;">위험 구역</div>
+          <div class="sec-sub" style="margin-bottom:12px;">이 기업의 저장된 데이터를 삭제합니다. 삭제 후에도 원본 PDF를 다시 업로드하면 재등록할 수 있습니다.</div>
+          <button class="btn" id="btnDeleteCompany" style="border-color:var(--red-md); color:var(--red-dk);">🗑 기업정보 삭제</button>
+        </div>
+
       </div>
       <div class="stbar"><span id="detailSourceInfo">원본: -</span><span id="detailUpdatedInfo">최근 업데이트: -</span></div>
     </div>
@@ -1359,11 +1365,27 @@ async function loadDetail(businessNo){
     renderOtherInfo(c);
     document.getElementById('btnDownloadExcel').onclick = () => { window.location = `/api/companies/${encodeURIComponent(businessNo)}/excel`; };
     document.getElementById('btnViewSourcePdf').onclick = () => { window.open(`/api/companies/${encodeURIComponent(businessNo)}/source-pdf`, '_blank'); };
+    document.getElementById('btnDeleteCompany').onclick = () => deleteCompanyRecord(businessNo, c.company_name);
     const sourceName = (c.source_pdf || '').split(/[\\/]/).pop() || '-';
     document.getElementById('detailSourceInfo').textContent = `원본: ${sourceName} (${c.page_count || '-'}p)`;
     document.getElementById('detailUpdatedInfo').textContent = `최근 업데이트: ${fmtDateTime(c.parsed_at)}`;
   }catch(e){
     document.getElementById('detailKpis').innerHTML = `<div class="empty">불러오기 실패: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function deleteCompanyRecord(businessNo, companyName){
+  if(!confirm(`'${companyName}' 기업 정보를 삭제하시겠습니까?\n\n삭제 후에는 원본 PDF를 다시 업로드해야 복구할 수 있습니다.`)) return;
+  try{
+    const res = await fetch(`/api/companies/${encodeURIComponent(businessNo)}`, {method:'DELETE'});
+    if(!res.ok){
+      const detail = (await safeJson(res))?.detail || `삭제 실패 (${res.status})`;
+      throw new Error(detail);
+    }
+    alert('삭제되었습니다.');
+    showPage('list', document.getElementById('nvList'));
+  }catch(e){
+    alert('삭제 중 오류가 발생했습니다: ' + e.message);
   }
 }
 
