@@ -852,7 +852,7 @@ function renderCompanyTable(items){
   if(!items.length){ tbody.innerHTML = '<tr><td colspan="9" class="empty">조건에 맞는 기업이 없습니다.</td></tr>'; return; }
   tbody.innerHTML = items.map(c => `
     <tr>
-      <td style="font-weight:700;">${escapeHtml(c.company_name)}</td>
+      <td style="font-weight:700; color:var(--blue); cursor:pointer;" onclick="viewDetail('${c.business_no}')">${escapeHtml(c.company_name)}</td>
       <td>${escapeHtml(c.business_no)}</td>
       <td>${escapeHtml(c.industry_name || '-')}</td>
       <td class="num">${fmtNum(c.revenue_latest)}</td>
