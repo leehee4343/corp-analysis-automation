@@ -35,6 +35,8 @@ uvicorn backend.app:app --reload
 
 브라우저에서 http://127.0.0.1:8000 접속. `--reload`는 코드 변경 시 자동 재시작(개발용) — 평소 사용은 `run.bat` 또는 이 옵션 없이 실행하면 됩니다.
 
+과거 버전(`data/*.json` 파일 저장 방식)에서 SQLite로 넘어온 경우, 기존 JSON 파일을 한 번 `python migrate_json_to_sqlite.py`로 옮겨주세요. 원본 JSON은 삭제하지 않으니 이관 결과를 확인한 뒤 필요하면 직접 정리하면 됩니다.
+
 ## 사용 방법
 
 1. **PDF 업로드** 메뉴에서 CRETOP·KODATA 기업종합보고서 PDF를 끌어다 놓거나 선택하면 자동으로 파싱 → 저장 → 엑셀 생성까지 처리됩니다.
@@ -55,9 +57,9 @@ backend/             FastAPI 백엔드
   parser/              PDF 텍스트 파싱(PyMuPDF) + 신용등급 등 OCR(Tesseract)
   excel/               엑셀 보고서 생성 (openpyxl)
   models.py            데이터 스키마 (pydantic)
-  storage.py           JSON 저장/조회 + 검증 이슈 판정
+  storage.py           SQLite 저장/조회 + 검증 이슈 판정
 frontend/index.html  웹 대시보드 (바닐라 HTML/CSS/JS, API 연동)
-data/                회사별 파싱 결과 JSON (사업자번호.json)
+data/                회사별 파싱 결과 SQLite DB (companies.db)
 uploads/              업로드된 원본 PDF
 outputs/              생성된 엑셀 파일
 tests/                pytest 테스트 + 샘플 PDF (샘플 PDF는 민감정보라 git 미포함)

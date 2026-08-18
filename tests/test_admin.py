@@ -9,7 +9,7 @@ from backend.routers import upload as upload_router
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     monkeypatch.setattr(upload_router, "UPLOADS_DIR", tmp_path / "uploads")
     monkeypatch.setattr(excel_generator, "OUTPUT_DIR", tmp_path / "outputs")
     monkeypatch.setattr(master_list, "MASTER_LIST_PATH", tmp_path / "참고자료" / "검색조회 목록.xlsx")

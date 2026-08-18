@@ -1,17 +1,20 @@
-"""회사별 JSON 저장/조회 및 검증 이슈 판정.
+"""회사별 데이터 저장/조회 및 검증 이슈 판정.
 
-data/{사업자번호}.json 한 파일에 회사 하나의 최신 파싱 결과를 저장한다 (사업자번호는
-안정적인 고유키라 파일명으로 씀 — 회사명은 특수문자/중복 가능성이 있어 부적합).
+SQLite 한 파일(`paths.DB_PATH`)의 companies 테이블에 회사 하나당 행 하나로 저장한다
+(사업자번호가 안정적인 고유키). `data` 컬럼에 Company 전체를 JSON으로 저장하고,
+company_name/industry_name/credit_grade/status/parsed_at은 DB Browser 등으로 직접
+열어봐도 바로 보이도록 중복 저장하는 조회용 컬럼이다 — 필터링/정렬 자체는 여전히
+호출 측(라우터)에서 파이썬으로 한다.
 """
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
 from .models import Company, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
 from .parser.grade_ocr import GradeResult
 from .parser.pdf_parser import ParsedCompany
-from .paths import DATA_DIR
+from .paths import DB_PATH
 
 _FIELD_LABELS_KO = {
     "business_no": "사업자번호",
@@ -22,8 +25,24 @@ _FIELD_LABELS_KO = {
 }
 
 
-def _path_for(business_no: str) -> Path:
-    return DATA_DIR / f"{business_no}.json"
+def _get_conn() -> sqlite3.Connection:
+    # DB_PATH를 함수 안에서 읽어야 테스트의 monkeypatch(storage.DB_PATH)가 반영된다 —
+    # 모듈 임포트 시점에 값을 미리 캡처해두면 갱신되지 않는다(admin.py에서 겪은 버그와 동일 유형).
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS companies (
+            business_no TEXT PRIMARY KEY,
+            company_name TEXT NOT NULL,
+            industry_name TEXT,
+            credit_grade TEXT,
+            status TEXT NOT NULL,
+            parsed_at TEXT NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    return conn
 
 
 def _build_issues(parsed: ParsedCompany, grades: GradeResult) -> list[ValidationIssue]:
@@ -127,27 +146,48 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
     )
 
 
-def save_company(company: Company) -> Path:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path = _path_for(company.business_no)
-    path.write_text(company.model_dump_json(indent=2), encoding="utf-8")
-    return path
+def save_company(company: Company) -> None:
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO companies (business_no, company_name, industry_name, credit_grade, status, parsed_at, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(business_no) DO UPDATE SET
+                company_name=excluded.company_name,
+                industry_name=excluded.industry_name,
+                credit_grade=excluded.credit_grade,
+                status=excluded.status,
+                parsed_at=excluded.parsed_at,
+                data=excluded.data
+            """,
+            (
+                company.business_no,
+                company.company_name,
+                company.industry_name,
+                company.credit_grade,
+                company.status,
+                company.parsed_at.isoformat(),
+                company.model_dump_json(),
+            ),
+        )
+    conn.close()
 
 
 def load_company(business_no: str) -> Company | None:
-    path = _path_for(business_no)
-    if not path.exists():
+    conn = _get_conn()
+    row = conn.execute("SELECT data FROM companies WHERE business_no = ?", (business_no,)).fetchone()
+    conn.close()
+    if row is None:
         return None
-    return Company.model_validate_json(path.read_text(encoding="utf-8"))
+    return Company.model_validate_json(row[0])
 
 
 def list_companies() -> list[Company]:
-    if not DATA_DIR.exists():
-        return []
-    return [
-        Company.model_validate_json(p.read_text(encoding="utf-8"))
-        for p in sorted(DATA_DIR.glob("*.json"))
-    ]
+    conn = _get_conn()
+    rows = conn.execute("SELECT data FROM companies ORDER BY business_no").fetchall()
+    conn.close()
+    return [Company.model_validate_json(row[0]) for row in rows]
 
 
 def list_issues() -> list[tuple[Company, ValidationIssue]]:

@@ -34,7 +34,7 @@ def _write_master_xlsx(path, rows):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     monkeypatch.setattr(upload_router, "UPLOADS_DIR", tmp_path / "uploads")
     monkeypatch.setattr(excel_generator, "OUTPUT_DIR", tmp_path / "outputs")
 

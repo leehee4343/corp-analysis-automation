@@ -293,3 +293,25 @@
   Render API(`POST /v1/services`, `type=web_service`, `env=docker`, `plan=free`, 디스크 없음)로 서비스 생성 → 자동으로 GitHub 저장소 빌드(Dockerfile 기반, Tesseract-OCR 설치 포함) 시작 → 백그라운드 폴링 스크립트로 배포 상태 감시 → `live` 확인 후 실제 URL에 curl로 루트 페이지(200)와 `/api/dashboard/summary`(정상 JSON, 빈 데이터 — 프레시 컨테이너라 예상된 상태) 응답 검증 완료.
 
   **서비스 URL**: `https://corp-analysis-automation.onrender.com` (무료 플랜, 영구 디스크 없음 — 데모/기능 확인용, 실 업무 데이터는 계속 로컬에서 관리 권장). `배포용 URL.txt`에 GitHub 저장소 URL과 함께 기록, 무료 플랜의 데이터 미보존 주의사항도 명시. 이 파일은 git 미추적(로컬 참고용).
+
+- 2026-08-18 (Claude): **배포 서버에 참고자료 반영 + 배포 환경용 로그인 추가.** 배포 직후 사용자가 "기업목록에 '기업 목록'이 노출되지 않아"라고 문의 — 배포 서버 컨테이너에는 `참고자료/*.xlsx`(gitignore 대상)가 없어 마스터리스트/법인형태별 메뉴가 빈 목록으로 뜨는 것이 원인(에러 아님, 정상 동작). Render 무료 플랜은 영구 디스크가 없어 배포 시점에 파일을 미리 넣어둘 방법이 없음 — `backend/routers/admin.py` 신규(`POST /api/admin/reference-upload/{master_list|category_list}`)로 배포된 서버에 참고자료를 직접 전송해 반영할 수 있게 함. `ADMIN_UPLOAD_TOKEN` 환경변수와 대조하는 별도 토큰으로 보호(토큰 미설정 시 항상 거부). `tests/test_admin.py` 4개 신규.
+
+  실제 업로드를 시도하자 시스템 권한 분류기가 차단 — 사유: **지금 배포된 사이트는 로그인이 전혀 없는 공개 URL**이라, 실제 사업자 데이터(대표자명·매출액·신용등급 포함)를 올리면 URL만 아는 누구나 조회 가능해지는 상태였음. 사용자에게 재확인(AskUserQuestion) 후 "간단한 비밀번호 로그인을 먼저 추가"하기로 결정. `backend/auth_middleware.py` 신규(`BasicAuthMiddleware`) — `APP_LOGIN_PASSWORD` 환경변수가 설정된 경우에만 앱 전체(프론트엔드+API)에 HTTP Basic 인증을 강제, 미설정 시(로컬 개발 기본값) 기존처럼 인증 없이 동작해 `run.bat` 워크플로우에 영향 없음. `tests/test_auth_middleware.py` 5개 신규. Render 환경변수(`APP_LOGIN_USER=admin`, `APP_LOGIN_PASSWORD=1234` — 사용자가 직접 지정)로 활성화, 배포 확인 결과 최초 반영 실패(env var 변경만으로는 이미 떠 있던 프로세스에 반영 안 됨 — Render API로 강제 재배포 트리거해서 해결) 후 정상 동작 확인(무인증/오답 401, 정답 200).
+
+  인증이 걸린 것을 확인한 뒤 참고자료 2개 파일(`검색조회 목록.xlsx`, `추가메뉴...xlsx`)을 실제로 업로드 완료.
+
+  **중대한 사고 발생 및 원인**: 업로드 직후 로컬/배포 양쪽에서 "기업목록에 불러오기 실패: 요청 실패(500)" 확인 — 원인을 추적한 결과, **`backend/routers/admin.py`의 초기 버전이 대상 경로를 모듈 임포트 시점에 딕셔너리로 미리 캡처해두는 구조**(`_TARGETS = {"master_list": master_list.MASTER_LIST_PATH, ...}`)였는데, 이 값은 테스트의 `monkeypatch.setattr(master_list, "MASTER_LIST_PATH", tmp_path/...)`가 적용되기 *전에* 이미 고정돼버린 상태였음. `tests/test_admin.py`의 업로드 테스트가 실행되면서, 테스트용 더미 엑셀("dummy" 한 글자만 든 파일)이 격리된 tmp_path가 아니라 **실제 로컬 `참고자료/검색조회 목록.xlsx` 파일에 그대로 덮어써짐** — 실데이터 손실 사고. `_target_path()` 함수로 바꿔 요청 시점에 `master_list.MASTER_LIST_PATH`를 매번 새로 읽도록 수정해 재발은 막았지만, 이미 손상된 원본 파일은 로컬에 다른 사본이 없고 Windows 이전 버전 복구도 불가해 **복구하지 못함** — 사용자에게 즉시 원인과 결과를 있는 그대로 보고. (다른 파일 `추가메뉴...xlsx`/`우편발송용 목록(샘플).xlsx`는 영향 없음.) **교훈**: 실제 파일 경로를 다루는 코드는 절대 모듈 임포트 시점에 값을 캡처하지 말고 호출 시점에 참조해야 함 — `backend/storage.py`의 `_get_conn()`(아래 SQLite 마이그레이션)에도 이 교훈을 명시적으로 반영함.
+
+- 2026-08-18 (Claude): **회사 데이터 저장소를 JSON 파일 → SQLite로 마이그레이션.** 위 사고를 계기로 사용자가 "이걸 지속가능하게 쓰려면 데이터베이스 연결이 좋겠다"고 제안, Claude도 동의(파일 기반 저장은 경로 버그 한 번에 실데이터가 통째로 날아갈 수 있음을 방금 직접 겪음). Plan 모드로 진입해 설계 확정 후 진행.
+
+  **범위**: `data/{사업자번호}.json` → `data/companies.db`(SQLite, 표준 라이브러리 `sqlite3`만 사용, 새 의존성 없음) 하나로. `참고자료/*.xlsx`(마스터리스트·법인형태별 메뉴), `uploads/*.pdf`, `outputs/*.xlsx`는 이번 범위 밖(원래도 파일로 두는 게 자연스러움) — `storage.py`가 다루는 "회사 분석 결과 레코드"만 이관.
+
+  **조사로 확인한 사실(설계 근거)**: `storage.py`에서 실제 파일시스템을 건드리는 함수는 `save_company`/`load_company`/`list_companies` 3개뿐이고, 나머지(`_build_issues`/`build_company`/`update_company`/`list_issues`/`latest_value`/`latest_revenue`/`overall_diagnosis`/`grade_band`)는 이미 로드된 `Company` 객체만 다루거나 저 3개를 호출만 해서 **코드 변경이 전혀 필요 없음**. `companies.py`/`upload.py`/`validation.py`/`mailing.py`/`master_list.py`/`category_list.py` 등 모든 라우터는 `storage.*`가 돌려주는 `Company` 객체만 쓰므로 **라우터 코드도 한 줄도 안 바뀜**. 필터링/정렬(업종/신용등급/매출액 구간, 최신순)은 이미 파이썬에서 하고 있어 이번엔 그대로 유지(SQL 푸시다운은 회사 수가 훨씬 늘어났을 때의 별도 최적화로 미룸).
+
+  **구현**: `backend/paths.py`에 `DB_PATH = DATA_DIR / "companies.db"` 추가. `backend/storage.py`의 `save_company`/`load_company`/`list_companies`를 SQLite 기반으로 재작성 — `companies` 테이블(business_no PK + company_name/industry_name/credit_grade/status/parsed_at 조회용 중복 컬럼 + 전체 데이터를 담는 `data` JSON 컬럼), `save_company`는 `INSERT ... ON CONFLICT DO UPDATE`(UPSERT). **바로 위 사고의 교훈을 그대로 반영**: `_get_conn()`은 `DB_PATH`를 함수 "호출 시점"에 읽도록 구현(모듈 임포트 시점에 캡처하지 않음 — 코드 주석에도 사고 경위를 명시). `migrate_json_to_sqlite.py`(프로젝트 루트, `setup_tessdata.py`와 같은 컨벤션) 신규 — 기존 `data/*.json`을 새 DB로 이관하는 1회성 스크립트, **원본 JSON은 절대 자동 삭제하지 않음**(직전 사고 직후라 실데이터 다루는 스크립트는 항상 비파괴적으로 작성).
+
+  **테스트**: 7개 파일(`test_storage.py` 7곳/`test_api.py`/`test_admin.py`/`test_master_list.py`/`test_category_list.py`/`test_mailing_list.py`)의 `monkeypatch.setattr(storage, "DATA_DIR", tmp_path)`를 `monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")`로 기계적 일괄 교체(로직 변경 없음, 각 테스트가 격리된 tmp_path를 쓰므로 DB 파일도 자연히 격리됨). 신규 테스트 1개(`test_save_company_upserts_same_business_no`) — 같은 사업자번호로 재저장 시 덮어쓰기만 되고 중복 행이 생기지 않는지 검증. 총 73개 테스트 통과.
+
+  **실데이터 검증**: `python migrate_json_to_sqlite.py` 실행 → 기존 `data/*.json` 64개 전부 정상 이관 확인(`storage.list_companies()` 개수 일치). 서버 기동 후 대시보드(`total_companies: 64`) 정상, 옥산농원 상세 페이지(신용정보 카드 3개, 재무제표 상세 패널 3개 등) 마이그레이션 전과 동일하게 렌더링 확인(Playwright, 콘솔 에러 0건). 실제 PDF 재업로드(`35_성지에프앤디.pdf`)로 UPSERT 동작도 실사용 흐름에서 재확인(기존 사업자번호 411-81-84761이 새 `parsed_at`으로 갱신, 전체 개수는 64 유지 — 중복 행 생성 안 됨).
+
+  **알려진 남은 제약**: 이번 작업은 로컬 저장소 안정성 개선이 목적이라, Render 무료 플랜(영구 디스크 없음)의 "재시작 시 데이터 초기화" 문제는 그대로다 — 별개 사안(영구 디스크/유료 플랜 전환 시 해결).

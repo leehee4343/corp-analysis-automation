@@ -23,7 +23,7 @@ def _sample_parsed(**overrides) -> ParsedCompany:
 
 
 def test_save_and_load_roundtrip(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     company = storage.build_company(_sample_parsed(), GradeResult(credit_grade="bb+", ew_grade="정상"))
     storage.save_company(company)
 
@@ -37,7 +37,7 @@ def test_save_and_load_roundtrip(tmp_path, monkeypatch):
 
 def test_full_extraction_fields_survive_save_and_load(tmp_path, monkeypatch):
     """PDF 전체 추출 필드(사용자 요청, PLAN.md 참고)가 JSON 저장/로딩을 거쳐도 보존되는지."""
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     parsed = _sample_parsed(
         credit_info={"행정처분정보": "해당사항없음"},
         certifications={"벤처": "미인증"},
@@ -61,7 +61,7 @@ def test_full_extraction_fields_survive_save_and_load(tmp_path, monkeypatch):
 
 
 def test_missing_field_creates_issue(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     parsed = _sample_parsed(address=None, missing_fields=["address"])
     company = storage.build_company(parsed)
     assert company.status == "needs_review"
@@ -69,13 +69,13 @@ def test_missing_field_creates_issue(tmp_path, monkeypatch):
 
 
 def test_representative_with_digits_flagged_as_format_suspect(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     company = storage.build_company(_sample_parsed(representative="정혜선2"))
     assert any(i.type == "format_suspect" and i.field == "representative" for i in company.issues)
 
 
 def test_reupload_with_different_report_date_flagged_as_duplicate(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     first = storage.build_company(_sample_parsed(report_query_datetime="2026-07-01 09:00:00"))
     storage.save_company(first)
 
@@ -86,7 +86,7 @@ def test_reupload_with_different_report_date_flagged_as_duplicate(tmp_path, monk
 def test_parse_error_creates_visible_issue_but_company_still_registers(tmp_path, monkeypatch):
     """섹션 하나가 파싱 중 예외를 던져도(부분 실패) 회사 자체는 등록되고, 실패한 부분만
     검증 대기열에 뜬다 — 사용자 버그 리포트 대응(PLAN.md 참고)."""
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     parsed = _sample_parsed(parse_errors=["업계순위: IndexError: 의도적으로 발생시킨 테스트용 오류"])
     company = storage.build_company(parsed)
     assert company.company_name == "옥산농원"  # 회사는 정상 등록됨
@@ -95,7 +95,7 @@ def test_parse_error_creates_visible_issue_but_company_still_registers(tmp_path,
 
 
 def test_list_companies_and_issues(tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
     storage.save_company(storage.build_company(_sample_parsed()))
     storage.save_company(storage.build_company(_sample_parsed(
         business_no="303-81-54893", company_name="농업회사법인 동일농장",
@@ -107,3 +107,14 @@ def test_list_companies_and_issues(tmp_path, monkeypatch):
 
     issues = storage.list_issues()
     assert any(c.company_name == "농업회사법인 동일농장" for c, _ in issues)
+
+
+def test_save_company_upserts_same_business_no(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    c1 = storage.build_company(_sample_parsed(company_name="옛날이름"))
+    storage.save_company(c1)
+    c2 = storage.build_company(_sample_parsed(company_name="새이름"))
+    storage.save_company(c2)  # 같은 business_no로 재저장
+
+    assert storage.load_company("412-93-13689").company_name == "새이름"
+    assert len(storage.list_companies()) == 1  # 중복 행 생기지 않음

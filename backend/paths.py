@@ -16,3 +16,4 @@ _STORAGE_ROOT = Path(os.environ["APP_STORAGE_ROOT"]) if os.environ.get("APP_STOR
 DATA_DIR = _STORAGE_ROOT / "data"
 UPLOADS_DIR = _STORAGE_ROOT / "uploads"
 OUTPUT_DIR = _STORAGE_ROOT / "outputs"
+DB_PATH = DATA_DIR / "companies.db"
