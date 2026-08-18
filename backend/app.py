@@ -4,11 +4,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
+from .auth_middleware import BasicAuthMiddleware
 from .routers import admin, category_list, companies, mailing, master_list, upload, validation
 
 FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
 
 app = FastAPI(title="기업분석 자동화 시스템")
+
+app.add_middleware(BasicAuthMiddleware)
 
 app.include_router(companies.router)
 app.include_router(upload.router)
