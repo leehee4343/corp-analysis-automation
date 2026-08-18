@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from .. import storage
 from ..excel.generator import generate_mailing_list_excel
-from ..models import Company, MailingListEntry
+from ..models import Company, MailingList, MailingListEntry
 
 router = APIRouter(prefix="/api", tags=["mailing"])
 
@@ -15,9 +15,9 @@ def _sorted_companies() -> list[Company]:
     return sorted(storage.list_companies(), key=lambda c: (c.postal_code or "99999", c.company_name))
 
 
-@router.get("/mailing-list", response_model=list[MailingListEntry])
-def mailing_list():
-    return [
+@router.get("/mailing-list", response_model=MailingList)
+def mailing_list(page: int = 1, page_size: int = 10):
+    entries = [
         MailingListEntry(
             no=i,
             business_no=c.business_no,
@@ -28,6 +28,9 @@ def mailing_list():
         )
         for i, c in enumerate(_sorted_companies(), start=1)
     ]
+    total = len(entries)
+    start = max(page - 1, 0) * page_size
+    return MailingList(total=total, page=page, page_size=page_size, items=entries[start:start + page_size])
 
 
 @router.get("/mailing-list/excel")

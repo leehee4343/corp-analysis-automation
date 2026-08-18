@@ -138,10 +138,24 @@ class MailingListEntry(BaseModel):
     representative: str | None = None
 
 
+class MailingList(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[MailingListEntry]
+
+
 class IssueEntry(BaseModel):
     business_no: str
     company_name: str
     issue: ValidationIssue
+
+
+class IssueList(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[IssueEntry]
 
 
 class DashboardSummary(BaseModel):

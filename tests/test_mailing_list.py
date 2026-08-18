@@ -42,11 +42,28 @@ def test_mailing_list_sorted_by_postal_code(client):
     res = client.get("/api/mailing-list")
     assert res.status_code == 200
     body = res.json()
-    assert len(body) == 2
-    assert body[0]["no"] == 1
-    assert body[0]["company_name"] == "옥산농원"
-    assert body[1]["no"] == 2
-    assert body[1]["company_name"] == "농업회사법인 동일농장"
+    assert body["total"] == 2
+    items = body["items"]
+    assert items[0]["no"] == 1
+    assert items[0]["company_name"] == "옥산농원"
+    assert items[1]["no"] == 2
+    assert items[1]["company_name"] == "농업회사법인 동일농장"
+
+
+def test_mailing_list_pagination(client):
+    for i in range(12):
+        storage.save_company(_company(
+            business_no=f"412-93-{13000 + i}", company_name=f"기업{i:02d}",
+            postal_code=f"{10000 + i}",
+        ))
+
+    res = client.get("/api/mailing-list", params={"page": 1, "page_size": 10})
+    body = res.json()
+    assert body["total"] == 12
+    assert len(body["items"]) == 10
+
+    res2 = client.get("/api/mailing-list", params={"page": 2, "page_size": 10})
+    assert len(res2.json()["items"]) == 2
 
 
 def test_mailing_list_excel_matches_reference_format(client):

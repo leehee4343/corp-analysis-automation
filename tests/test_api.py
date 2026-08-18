@@ -147,9 +147,25 @@ def test_issues_endpoint(client):
     res = client.get("/api/issues")
     assert res.status_code == 200
     body = res.json()
-    assert len(body) == 1
-    assert body[0]["company_name"] == "옥산농원"
-    assert body[0]["issue"]["type"] == "missing_field"
+    assert body["total"] == 1
+    assert body["items"][0]["company_name"] == "옥산농원"
+    assert body["items"][0]["issue"]["type"] == "missing_field"
+
+
+def test_issues_endpoint_pagination(client):
+    for i in range(12):
+        storage.save_company(_sample_company(
+            business_no=f"412-93-{13000 + i}", company_name=f"기업{i:02d}",
+            issues=[ValidationIssue(type="missing_field", field="address", message="주소 없음")],
+        ))
+
+    res = client.get("/api/issues", params={"page": 1, "page_size": 10})
+    body = res.json()
+    assert body["total"] == 12
+    assert len(body["items"]) == 10
+
+    res2 = client.get("/api/issues", params={"page": 2, "page_size": 10})
+    assert len(res2.json()["items"]) == 2
 
 
 def test_dashboard_summary(client):

@@ -433,6 +433,10 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
             <tbody id="mailingTableBody"><tr><td colspan="5" class="loading">불러오는 중…</td></tr></tbody>
           </table>
         </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--sub);">
+          <span id="mailingTotalInfo">0개 중 0–0 표시</span>
+          <div style="display:flex; gap:6px;" id="mailingPagination"></div>
+        </div>
       </div>
       <div class="stbar"><span>기업분석 자동화 시스템 · 로컬 전용 (LLM API 미사용)</span><span id="mailingStatusTotal">총 0개 기업</span></div>
     </div>
@@ -621,6 +625,10 @@ table.mt td.num{text-align:right; font-variant-numeric:tabular-nums;}
       <div class="content">
         <div class="sec">
           <div class="gv cols3" id="issueCards"><div class="loading">불러오는 중…</div></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--sub);">
+            <span id="issueTotalInfo">0개 중 0–0 표시</span>
+            <div style="display:flex; gap:6px;" id="issuePagination"></div>
+          </div>
         </div>
 
         <div class="sec">
@@ -736,7 +744,7 @@ function viewDetail(businessNo){
 }
 
 async function refreshIssueBadge(){
-  try{ const issues = await apiGet('/api/issues'); refreshIssueBadgeFromCount(issues.length); }
+  try{ const data = await apiGet('/api/issues?page=1&page_size=1'); refreshIssueBadgeFromCount(data.total); }
   catch(e){ /* 무시 */ }
 }
 function refreshIssueBadgeFromCount(count){
@@ -888,16 +896,23 @@ function renderCompanyRows(tbodyId, items){
   `).join('');
 }
 
-function renderPagination(total, page, pageSize){
+// 모든 목록 화면(기업목록/영업 대상 분류/우편발송용 목록/데이터 검증)이 공유하는
+// 페이지네이션: 처음/이전/[전체 페이지 번호]/다음/끝.
+function renderPaginationControls(containerId, total, page, pageSize, gotoFnName){
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const container = document.getElementById('listPagination');
-  let html = `<button class="btn sm" ${page<=1?'disabled':''} onclick="gotoPage(${page-1})">이전</button>`;
-  const start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
-  for(let p=start; p<=end; p++){
-    html += `<button class="btn sm ${p===page?'pri':''}" onclick="gotoPage(${p})">${p}</button>`;
+  const container = document.getElementById(containerId);
+  let html = `<button class="btn sm" ${page<=1?'disabled':''} onclick="${gotoFnName}(1)">처음</button>`;
+  html += `<button class="btn sm" ${page<=1?'disabled':''} onclick="${gotoFnName}(${page-1})">이전</button>`;
+  for(let p=1; p<=totalPages; p++){
+    html += `<button class="btn sm ${p===page?'pri':''}" onclick="${gotoFnName}(${p})">${p}</button>`;
   }
-  html += `<button class="btn sm" ${page>=totalPages?'disabled':''} onclick="gotoPage(${page+1})">다음</button>`;
+  html += `<button class="btn sm" ${page>=totalPages?'disabled':''} onclick="${gotoFnName}(${page+1})">다음</button>`;
+  html += `<button class="btn sm" ${page>=totalPages?'disabled':''} onclick="${gotoFnName}(${totalPages})">끝</button>`;
   container.innerHTML = html;
+}
+
+function renderPagination(total, page, pageSize){
+  renderPaginationControls('listPagination', total, page, pageSize, 'gotoPage');
 }
 function gotoPage(p){ listState.page = p; loadList(); }
 
@@ -927,15 +942,17 @@ async function exportAllExcel(){
 }
 
 /* ===== 우편발송용 목록 ===== */
+let mailingState = { page:1, pageSize:10 };
+
 async function loadMailingList(){
   const tbody = document.getElementById('mailingTableBody');
   tbody.innerHTML = '<tr><td colspan="5" class="loading">불러오는 중…</td></tr>';
   try{
-    const items = await apiGet('/api/mailing-list');
-    if(!items.length){
+    const data = await apiGet(`/api/mailing-list?page=${mailingState.page}&page_size=${mailingState.pageSize}`);
+    if(!data.items.length){
       tbody.innerHTML = '<tr><td colspan="5" class="empty">등록된 기업이 없습니다.</td></tr>';
     }else{
-      tbody.innerHTML = items.map(item => `
+      tbody.innerHTML = data.items.map(item => `
         <tr>
           <td>${item.no}</td>
           <td>${escapeHtml(item.postal_code || '—')}</td>
@@ -945,11 +962,16 @@ async function loadMailingList(){
         </tr>
       `).join('');
     }
-    document.getElementById('mailingStatusTotal').textContent = `총 ${items.length}개 기업`;
+    renderPaginationControls('mailingPagination', data.total, data.page, data.page_size, 'gotoMailingPage');
+    const shown = data.items.length;
+    const startIdx = shown ? (data.page-1)*data.page_size + 1 : 0;
+    document.getElementById('mailingTotalInfo').textContent = `${data.total}개 중 ${startIdx}–${startIdx + shown - (shown?1:0)} 표시`;
+    document.getElementById('mailingStatusTotal').textContent = `총 ${data.total}개 기업`;
   }catch(e){
     tbody.innerHTML = `<tr><td colspan="5" class="empty">불러오기 실패: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
+function gotoMailingPage(p){ mailingState.page = p; loadMailingList(); }
 
 /* ===== 영업 대상 분류 (개인사업자/일반법인/농업회사법인/영농조합법인) ===== */
 const CATEGORY_META = {
@@ -1009,15 +1031,7 @@ async function exportCategoryExcel(){
 }
 
 function renderCategoryPagination(total, page, pageSize){
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const container = document.getElementById('categoryPagination');
-  let html = `<button class="btn sm" ${page<=1?'disabled':''} onclick="gotoCategoryPage(${page-1})">이전</button>`;
-  const start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
-  for(let p=start; p<=end; p++){
-    html += `<button class="btn sm ${p===page?'pri':''}" onclick="gotoCategoryPage(${p})">${p}</button>`;
-  }
-  html += `<button class="btn sm" ${page>=totalPages?'disabled':''} onclick="gotoCategoryPage(${page+1})">다음</button>`;
-  container.innerHTML = html;
+  renderPaginationControls('categoryPagination', total, page, pageSize, 'gotoCategoryPage');
 }
 function gotoCategoryPage(p){ categoryState.page = p; loadCategoryList(); }
 
@@ -1425,11 +1439,14 @@ async function handleIssueAction(entry){
   }
 }
 
+let issueState = { page:1, pageSize:10 };
+
 async function loadIssues(){
   const container = document.getElementById('issueCards');
   container.innerHTML = '<div class="loading">불러오는 중…</div>';
   try{
-    const issues = await apiGet('/api/issues');
+    const data = await apiGet(`/api/issues?page=${issueState.page}&page_size=${issueState.pageSize}`);
+    const issues = data.items;
     if(!issues.length){
       container.innerHTML = '<div class="empty">검증 대기 중인 항목이 없습니다.</div>';
     }else{
@@ -1438,12 +1455,17 @@ async function loadIssues(){
         document.getElementById(`issueBtn${i}`).onclick = () => handleIssueAction(entry);
       });
     }
-    document.getElementById('issuePendingCount').textContent = `검증 대기 ${issues.length}건`;
-    refreshIssueBadgeFromCount(issues.length);
+    renderPaginationControls('issuePagination', data.total, data.page, data.page_size, 'gotoIssuePage');
+    const shown = issues.length;
+    const startIdx = shown ? (data.page-1)*data.page_size + 1 : 0;
+    document.getElementById('issueTotalInfo').textContent = `${data.total}개 중 ${startIdx}–${startIdx + shown - (shown?1:0)} 표시`;
+    document.getElementById('issuePendingCount').textContent = `검증 대기 ${data.total}건`;
+    refreshIssueBadgeFromCount(data.total);
   }catch(e){
     container.innerHTML = `<div class="empty">불러오기 실패: ${escapeHtml(e.message)}</div>`;
   }
 }
+function gotoIssuePage(p){ issueState.page = p; loadIssues(); }
 
 /* ===== 초기화 ===== */
 function wireStaticHandlers(){
