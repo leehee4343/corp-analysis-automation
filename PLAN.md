@@ -364,3 +364,13 @@
   - **UX 개선**: 해시 라우팅(`#/companies`, `#/company/{사업자번호}?from=…`)으로 브라우저 뒤로가기·새로고침 유지, 상세는 진입한 목록 메뉴를 활성화하고 `목록` 버튼으로 복귀, 데이터 검증을 카드 → 표로 변경하고 수정 가능한 항목만 `직접 수정` 모달, 업로드 처리 현황 표 + 행별 상세 보기, 삭제 확인 모달, 처리 로그의 옛 "JSON 저장" 문구를 DB 기준으로 정정.
   - **의도적으로 적용하지 않은 가이드 규칙**: 화면·탭·팝업마다 독립 HTML 파일, `assets/styles/style.css`·`dashboard.js` 분리, 권한 전환·시스템 전환(PMS↔SRM)·Description 개발자 드로어 — KEPCO 프로토타입 저장소 전용 구조라 API 연동 단일 페이지 앱인 이 프로젝트엔 해당 없음. KEPCO CI·저작권 문구도 쓰지 않음(이 앱은 KEPCO 시스템이 아님, 중립 저작권 문구 사용).
   - **검증**: pytest 57 통과(21 skip, 샘플 PDF 없음). scratchpad 임시 저장소(`APP_STORAGE_ROOT`)에 가상 기업 24건을 넣어 Playwright로 전 화면 확인 — 정렬·검색·페이징·상세 이동·모달 Esc·이슈 수정 후 해제 정상, 콘솔 오류 0, 13px 미만 글꼴 0, 1920/1440/1280px 가로 넘침 없음. 이후 수정(막대 채움 표시, 목록 행 버튼 정리, 부채비율 증감 색 의미 반전, 표 행 높이 44px 유지)은 재촬영 확인 전.
+
+- 2026-09-30 (Claude): **Tesseract 설치 + 신용등급 재인식.** 맥에 Tesseract가 없어 업로드한 65개 전부 신용등급 미인식(검증 필요)이었음. 관리자 권한 없이 micromamba(conda-forge)로 `~/.local/share/tesseract-env`에 Tesseract 5.5 설치(`~/.local/bin/tesseract` 링크), `setup_tessdata.py`로 `.tessdata/` 준비, `grade_ocr.py`가 맥 설치 경로도 탐색하도록 확장. DB 백업 후 `uploads/`의 원본으로 등급만 재인식 → 신용등급 62/65 인식(실패: 새롬한방제약·토리팜에프디·현진식품영농조합법인), EW 정상55·유보7·과시1·미인식2. 샘플 PDF 3개를 `tests/sample_pdfs/`에 복사해 PDF·OCR 테스트 포함 78개 전부 통과.
+
+- 2026-09-30 (Claude): **Supabase Postgres 영구 저장 + 배포 사이트 로그인.** 사용자 요청 "PDF를 등록하면 Supabase DBMS에 영구 저장". 무료 플랜이라 새 프로젝트를 못 만들어 사용자의 기존 `wbs-analyzer` 프로젝트(ref `viusyktclcquljfnquwv`, 서울)를 공유 — 기존 앱과 격리하려고 **전용 스키마 `corp_analysis` + 전용 DB 계정 `corp_analysis_app`**(자기 스키마만 권한, public 테이블은 보이지도 않음을 확인)으로 구성. 테이블: `companies`(기존 SQLite와 같은 구조, data는 jsonb), `source_pdfs`(원본 PDF bytea — Storage는 service_role 키가 필요해 격리가 깨지므로 DB에 보관, 65개 59MB).
+  - 코드: `storage.py`는 `DATABASE_URL`이 있으면 Postgres, 없으면 기존 SQLite(테스트·오프라인). 업로드 시 원본 PDF를 `source_pdfs`에 저장, `원본 PDF 보기`는 저장소에서 제공. `tests/conftest.py`가 모든 테스트에서 `DATABASE_URL`을 지워 실제 DB에 쓰지 않음. `migrate_sqlite_to_postgres.py`(비파괴)로 로컬 65개 기업 + PDF 65개 이관(직전 SQLite 백업 `data/companies.backup-…-before-supabase.db`).
+  - 비밀값: 연결 문자열·전용 계정 비밀번호·Supabase/Render API 토큰은 git 제외 `.env`에만 보관. `프로그램 시작.command`가 `.env`의 `DATABASE_URL`을 읽어 실행.
+  - Render(`srv-da2506jutv3s73bhcvpg`, corp-analysis-automation.onrender.com): 환경변수 `DATABASE_URL`, `APP_LOGIN_USER=admin`, `APP_LOGIN_PASSWORD=1234`(사용자 지정) 설정 후 재배포 — 무인증·오답 401, 정답 200, 65개 데이터·원본 PDF·엑셀 정상 확인. 로컬과 배포 사이트가 같은 Supabase 데이터를 공유. **참고**: 같은 저장소를 배포하는 별도 서비스 `corp-analysis-automation-backend`(2026-08-22 생성, 환경변수 없음)가 있어 로그인 없이 공개되어 있으나 SQLite라 데이터는 비어 있음 — 건드리지 않음, 필요 없으면 삭제 권장.
+  - 채팅에 노출된 Supabase·Render 토큰은 작업 후 사용자가 삭제 필요.
+
+- 2026-09-30 (Claude): **헤더 회사 심볼.** `회사심볼.png`(1536×1024, 회색 배경·번짐 포함)에서 심볼 도형만 투명 배경으로 잘라 `frontend/assets/company-symbol.png`(100×128)로 저장, `/assets` 정적 경로 추가, 헤더를 `[심볼] 제목 ≡` 순서로 변경.
