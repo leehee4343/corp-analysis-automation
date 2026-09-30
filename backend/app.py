@@ -22,4 +22,5 @@ app.include_router(category_list.router)
 
 @app.get("/")
 def index():
-    return FileResponse(FRONTEND_INDEX)
+    # 화면을 고친 뒤 브라우저가 예전 index.html을 캐시에서 보여 주지 않도록 매번 새로 확인하게 한다.
+    return FileResponse(FRONTEND_INDEX, headers={"Cache-Control": "no-cache"})

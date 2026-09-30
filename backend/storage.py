@@ -268,6 +268,45 @@ def filter_companies(
     return companies
 
 
+_GRADE_BASES = ("aaa", "aa", "a", "bbb", "bb", "b", "ccc", "cc", "c", "d")
+_GRADE_MODIFIERS = {"+": 0, "0": 1, "": 1, "-": 2}
+
+
+def _grade_rank(credit_grade: str | None) -> tuple[int, int] | None:
+    """신용등급을 우량한 순서(aaa → d)로 비교하기 위한 키. 형식이 다르면 None."""
+    if not credit_grade:
+        return None
+    g = credit_grade.lower()
+    base = g.rstrip("+-0")
+    if base not in _GRADE_BASES:
+        return None
+    return _GRADE_BASES.index(base), _GRADE_MODIFIERS.get(g[len(base):], 1)
+
+
+SORT_KEYS = {
+    "company_name": lambda c: c.company_name,
+    "business_no": lambda c: c.business_no,
+    "industry_name": lambda c: c.industry_name,
+    "revenue_latest": latest_revenue,
+    "operating_profit_latest": lambda c: latest_value(c, "영업이익"),
+    "credit_grade": lambda c: _grade_rank(c.credit_grade),
+    "status": lambda c: c.status,
+    "parsed_at": lambda c: c.parsed_at,
+}
+
+
+def sort_companies(companies: list[Company], sort: str | None, order: str = "desc") -> list[Company]:
+    """기업목록/영업 대상 분류 화면의 열 정렬. 값이 없는 항목은 정렬 방향과 무관하게
+    항상 맨 뒤에 둔다. 알 수 없는 sort 키는 기본 정렬(최근 등록순)로 처리한다."""
+    key_fn = SORT_KEYS.get(sort or "")
+    if key_fn is None:
+        return sorted(companies, key=lambda c: c.parsed_at, reverse=True)
+    present = [c for c in companies if key_fn(c) is not None]
+    missing = [c for c in companies if key_fn(c) is None]
+    present.sort(key=key_fn, reverse=(order == "desc"))
+    return present + missing
+
+
 def grade_band(credit_grade: str | None) -> str:
     """대시보드 신용등급 분포용 구간 — 목업 도넛 범례(A~BBB/BB/B/CCC 이하)와 동일."""
     if not credit_grade:

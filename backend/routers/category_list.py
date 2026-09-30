@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 
 from .. import category_list, storage
@@ -23,6 +25,8 @@ def list_category(
     grade_band: str | None = None,
     revenue_min: float | None = None,
     revenue_max: float | None = None,
+    sort: str | None = None,
+    order: Literal["asc", "desc"] = "desc",
     page: int = 1,
     page_size: int = 20,
 ):
@@ -34,7 +38,7 @@ def list_category(
         q=q, industry=industry, grade_band_filter=grade_band,
         revenue_min=revenue_min, revenue_max=revenue_max,
     )
-    companies.sort(key=lambda c: c.parsed_at, reverse=True)
+    companies = storage.sort_companies(companies, sort, order)
 
     total = len(companies)
     start = max(page - 1, 0) * page_size

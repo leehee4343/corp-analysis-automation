@@ -90,6 +90,36 @@ def test_filter_by_grade_band_and_revenue(client):
     assert res.json()["items"][0]["company_name"] == "옥산농원"
 
 
+def test_sort_by_revenue_and_credit_grade(client):
+    storage.save_company(_sample_company())  # bb+, revenue 8307
+    storage.save_company(_sample_company(
+        business_no="303-81-54893", company_name="농업회사법인 동일농장",
+        credit_grade="a-", income_summary={"매출액": {"2025": 2000}},
+    ))
+    storage.save_company(_sample_company(
+        business_no="111-11-11111", company_name="등급없음농장", credit_grade=None, income_summary={},
+    ))
+
+    names = lambda res: [i["company_name"] for i in res.json()["items"]]
+
+    res = client.get("/api/companies", params={"sort": "revenue_latest", "order": "desc"})
+    assert names(res) == ["옥산농원", "농업회사법인 동일농장", "등급없음농장"]  # 값 없는 항목은 항상 맨 뒤
+
+    res = client.get("/api/companies", params={"sort": "revenue_latest", "order": "asc"})
+    assert names(res) == ["농업회사법인 동일농장", "옥산농원", "등급없음농장"]
+
+    # 신용등급 오름차순 = 우량한 등급부터 (a- 가 bb+ 보다 앞)
+    res = client.get("/api/companies", params={"sort": "credit_grade", "order": "asc"})
+    assert names(res) == ["농업회사법인 동일농장", "옥산농원", "등급없음농장"]
+
+
+def test_unknown_sort_key_falls_back_to_recent_first(client):
+    storage.save_company(_sample_company())
+    res = client.get("/api/companies", params={"sort": "no_such_column"})
+    assert res.status_code == 200
+    assert res.json()["total"] == 1
+
+
 def test_download_source_pdf(client, tmp_path):
     pdf_path = tmp_path / "1_옥산농원.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake")
