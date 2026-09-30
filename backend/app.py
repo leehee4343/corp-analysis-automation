@@ -3,13 +3,16 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .auth_middleware import BasicAuthMiddleware
 from .routers import category_list, companies, mailing, upload, validation
 
-FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+FRONTEND_INDEX = FRONTEND_DIR / "index.html"
 
 app = FastAPI(title="기업분석 자동화 시스템")
+app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")  # 회사 심볼 등 화면 이미지
 
 app.add_middleware(BasicAuthMiddleware)
 

@@ -50,17 +50,14 @@ a:hover, a:focus-visible{color:var(--primary-hover); text-decoration:underline;}
 /* ===== 헤더 (4.1) ===== */
 .top-header{position:sticky; top:0; z-index:100; height:var(--header-height); flex:none; display:flex; align-items:center;
   background:var(--bg-white); border-bottom:1px solid var(--border-light);}
-.header-sidebar-zone{width:var(--sidebar-width); height:100%; flex:none; display:flex; align-items:center; justify-content:space-between;
-  padding:0 12px 0 20px; border-right:1px solid var(--border-light); transition:width var(--transition-normal);}
-.app-mark{display:flex; align-items:center; color:var(--primary-blue);}
-.app-mark svg{width:26px; height:26px;}
+.header-brand{height:100%; flex:none; display:flex; align-items:center; gap:10px; padding:0 16px 0 20px; text-decoration:none;}
+.header-brand:hover, .header-brand:focus-visible{text-decoration:none;}
+.brand-symbol{width:22px; height:28px; max-width:100%; object-fit:contain; display:block;}
 .sidebar-toggle{width:36px; height:36px; border:none; background:transparent; border-radius:var(--control-radius); color:var(--text-muted);
   display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background var(--transition-fast), color var(--transition-fast);}
 .sidebar-toggle:hover{background:#f1f5f9; color:var(--primary-blue);}
 .sidebar-toggle svg{width:20px; height:20px;}
-body.sidebar-collapsed .header-sidebar-zone{padding:0; justify-content:center;}
-body.sidebar-collapsed .app-mark{display:none;}
-.system-title{padding-left:var(--content-edge-gap); font-size:18px; font-weight:800; letter-spacing:-.4px; color:var(--primary-blue); white-space:nowrap;}
+.system-title{font-size:18px; font-weight:800; letter-spacing:-.4px; color:var(--primary-blue); white-space:nowrap;}
 
 /* ===== 레이아웃 ===== */
 .app-container{flex:1; display:flex; align-items:stretch; min-height:0;}
@@ -426,15 +423,13 @@ body.modal-open{overflow:hidden;}
 <body>
 
 <header class="top-header">
-  <div class="header-sidebar-zone">
-    <span class="app-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 16v-4"/><path d="M12 16V8"/><path d="M16 16v-6"/></svg>
-    </span>
-    <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="메뉴 접기" aria-expanded="true" aria-controls="sidebar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-    </button>
-  </div>
-  <span class="system-title">기업분석 자동화 시스템</span>
+  <a class="header-brand" href="#/dashboard" aria-label="기업분석 자동화 시스템 대시보드로 이동">
+    <img class="brand-symbol" src="/assets/company-symbol.png" alt="" width="22" height="28">
+    <span class="system-title">기업분석 자동화 시스템</span>
+  </a>
+  <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="메뉴 접기" aria-expanded="true" aria-controls="sidebar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+  </button>
 </header>
 
 <div class="app-container">
