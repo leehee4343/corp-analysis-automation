@@ -22,7 +22,8 @@ async def upload_pdf(file: UploadFile):
     try:
         UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
         dest = UPLOADS_DIR / Path(file.filename).name  # 경로 조작 방지, 파일명만 사용
-        dest.write_bytes(await file.read())
+        content = await file.read()
+        dest.write_bytes(content)
     except OSError as e:
         # 백신 실시간 검사 등이 방금 쓴 파일을 잠그는 경우 등 — 원인을 그대로 노출한다.
         raise HTTPException(status_code=500, detail=f"파일 저장에 실패했습니다: {e}") from e
@@ -41,6 +42,7 @@ async def upload_pdf(file: UploadFile):
     try:
         company = storage.build_company(parsed, grades)
         storage.save_company(company)
+        storage.save_source_pdf(company.business_no, dest.name, content)
         generate_excel(company)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"데이터 저장/엑셀 생성 중 오류가 발생했습니다: {e}") from e

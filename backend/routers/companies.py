@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from typing import Literal
-
-from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .. import storage
 from ..excel.generator import generate_excel
@@ -69,12 +68,13 @@ def download_source_pdf(business_no: str):
     company = storage.load_company(business_no)
     if company is None:
         raise HTTPException(status_code=404, detail="등록되지 않은 사업자번호입니다.")
-    if not company.source_pdf:
-        raise HTTPException(status_code=404, detail="원본 PDF 경로가 저장되어 있지 않습니다.")
-    path = Path(company.source_pdf)
-    if not path.exists():
+    source = storage.load_source_pdf(company)
+    if source is None:
         raise HTTPException(status_code=404, detail="원본 PDF 파일을 찾을 수 없습니다.")
-    return FileResponse(path, filename=path.name, media_type="application/pdf")
+    filename, content = source
+    # 브라우저에서 바로 열리도록 inline, 한글 파일명은 RFC 5987 형식으로 전달
+    disposition = f"inline; filename*=UTF-8''{quote(filename)}"
+    return Response(content, media_type="application/pdf", headers={"Content-Disposition": disposition})
 
 
 @router.patch("/companies/{business_no}", response_model=Company)
