@@ -55,9 +55,14 @@ if _LOCAL_TESSDATA.is_dir():
 if not pytesseract.pytesseract.tesseract_cmd or pytesseract.pytesseract.tesseract_cmd == "tesseract":
     found = shutil.which("tesseract")
     if not found:
-        default_win_path = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
-        if default_win_path.exists():
-            found = str(default_win_path)
+        # PATH에 없을 때의 기본 설치 위치: Windows 공식 설치, macOS 사용자 폴더(conda-forge)·Homebrew
+        candidates = [
+            Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+            Path.home() / ".local" / "bin" / "tesseract",
+            Path("/opt/homebrew/bin/tesseract"),
+            Path("/usr/local/bin/tesseract"),
+        ]
+        found = next((str(p) for p in candidates if p.exists()), None)
     if found:
         pytesseract.pytesseract.tesseract_cmd = found
 
