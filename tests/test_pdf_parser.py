@@ -59,6 +59,16 @@ def test_diagnosis(parsed):
     }
 
 
+def test_diagnosis_gauges_read_from_images():
+    import fitz
+    from backend.parser.pdf_parser import parse_diagnosis_gauges
+    gauges = parse_diagnosis_gauges(fitz.open(SAMPLE))
+    assert gauges == {
+        "growth": "양호", "profitability": "우수", "financial_structure": "양호",
+        "debt_repayment": "우수", "activity": "우수",
+    }
+
+
 def test_industry_rank(parsed):
     assert parsed.industry_rank == {"rank": 74, "sample_size": 79}
 

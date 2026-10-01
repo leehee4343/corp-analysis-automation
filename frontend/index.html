@@ -641,7 +641,8 @@ function gradeBadge(grade){
 }
 function diagnosisBadge(rating){
   if(!rating) return '-';
-  const cls = {'우수':'badge-success', '양호':'badge-success', '보통':'badge-warning', '미흡':'badge-danger', '취약':'badge-danger'}[rating] || 'badge-tag';
+  const cls = {'우수':'badge-success', '양호':'badge-success', '보통':'badge-warning', '보통이하':'badge-warning',
+    '낮음':'badge-danger', '미흡':'badge-danger', '취약':'badge-danger'}[rating] || 'badge-tag';
   return `<span class="${cls}">${esc(rating)}</span>`;
 }
 function statusBadge(status){

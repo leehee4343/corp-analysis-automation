@@ -154,27 +154,80 @@ def parse_diagnosis(full_text: str) -> dict[str, str | None]:
     return result
 
 
+# 재무진단 페이지의 5축 등급은 텍스트가 아니라 원형 게이지 이미지다(왼쪽부터 L.DIAGNOSIS_AXES 순서).
+# 위 parse_diagnosis가 읽는 "…은 양호함" 요약 문장은 우수/양호일 때만 인쇄되어, 보통이하·낮음은
+# 텍스트로는 알 수 없다. 게이지 글자는 OCR이 잘 안 되지만(흰 글씨·파란 바탕 등) 고리 색이 등급별로
+# 고정되어 있어 색으로 판정한다(65개 실제 PDF의 325개 게이지 전수 확인, 2026-10-01).
+_DIAGNOSIS_GAUGE_COLORS = {
+    "우수": (0, 117, 219),       # 파랑
+    "양호": (109, 169, 103),     # 초록
+    "보통이하": (255, 200, 16),  # 노랑
+    "낮음": (233, 90, 71),       # 빨강
+    None: (238, 238, 238),       # 회색 빈 고리 = 등급없음
+}
+_GAUGE_COLOR_TOLERANCE = 60
+
+
+def _classify_gauge_color(rgb: tuple[int, int, int]) -> str | None:
+    """가장 가까운 기준색의 등급. 어느 색과도 멀면 판정하지 않는다(None)."""
+    best, best_dist = None, None
+    for label, ref in _DIAGNOSIS_GAUGE_COLORS.items():
+        dist = sum((a - b) ** 2 for a, b in zip(rgb, ref)) ** 0.5
+        if best_dist is None or dist < best_dist:
+            best, best_dist = label, dist
+    return best if best_dist is not None and best_dist <= _GAUGE_COLOR_TOLERANCE else None
+
+
+def parse_diagnosis_gauges(doc: "fitz.Document") -> dict[str, str | None] | None:
+    """재무진단 페이지(분석의견 표)의 정사각형 게이지 5개에서 등급을 읽는다. 게이지가 시작되는
+    12시 방향 고리 픽셀의 색으로 판정. 페이지를 못 찾으면 None."""
+    for page in doc:
+        text = page.get_text()
+        if L.DIAGNOSIS_COMMENTARY_HEADER not in text or "재무진단" not in text:
+            continue
+        infos = [i for i in page.get_image_info(xrefs=True)
+                 if i["width"] == i["height"] and 100 <= i["width"] <= 200 and i.get("xref")]
+        if len(infos) < len(L.DIAGNOSIS_AXES):
+            continue
+        infos = sorted(infos, key=lambda i: i["bbox"][0])[:len(L.DIAGNOSIS_AXES)]
+        result: dict[str, str | None] = {}
+        for key, info in zip(L.DIAGNOSIS_AXES, infos):
+            pix = fitz.Pixmap(doc, info["xref"])
+            if pix.n - pix.alpha >= 4:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+            # 12시 방향 고리 위 작은 영역의 평균색 (안티앨리어싱 영향 줄이기)
+            cx, top = pix.width // 2, max(1, pix.height // 18)
+            samples = [pix.pixel(x, y)[:3] for x in range(cx - 2, cx + 3) for y in range(top - 1, top + 2)]
+            avg = tuple(sum(c[i] for c in samples) // len(samples) for i in range(3))
+            result[key] = _classify_gauge_color(avg)
+        return result
+    return None
+
+
 def parse_industry_rank(lines: list[str], business_no: str) -> dict[str, int | None]:
     """10페이지 업계순위 표에서 자사 행을 찾아 순위를 읽는다."""
     header_idx = _find_index(lines, L.INDUSTRY_RANK_HEADER)
     if header_idx is None:
         return {"rank": None, "sample_size": None}
-    # 각 행은 [순위(예: "74위"), 기업명, 매출액, 결산월, 사업자번호, 대표자명] 6토큰
+    # 각 행은 [순위(예: "74위"), 기업명, 매출액, 결산월, 사업자번호, 대표자명]. 기업명이 길면 두 줄로
+    # 나뉘어(예: "…나주평야동강" / "알피씨") 사업자번호 위치가 밀리므로, 순위 뒤 몇 줄 안에서 찾는다.
     max_rank = None
     own_rank = None
     idx = header_idx
-    while idx < len(lines) - 5:
+    while idx < len(lines):
+        if lines[idx].startswith("동종업계내"):
+            break
         m = re.match(r"^(\d+)위$", lines[idx])
-        if m and lines[idx + 4] and L.BUSINESS_NO_RE.match(lines[idx + 4] or ""):
+        bn_idx = next((j for j in range(idx + 1, min(idx + 8, len(lines)))
+                       if L.BUSINESS_NO_RE.fullmatch(lines[j])), None) if m else None
+        if m and bn_idx is not None:
             rank = int(m.group(1))
             max_rank = rank if max_rank is None else max(max_rank, rank)
-            if lines[idx + 4] == business_no:
+            if lines[bn_idx] == business_no:
                 own_rank = rank
-            idx += 5
+            idx = bn_idx + 1
         else:
             idx += 1
-            if lines[idx - 1].startswith("동종업계내"):
-                break
     return {"rank": own_rank, "sample_size": max_rank}
 
 
@@ -485,6 +538,9 @@ def parse_pdf(path: str) -> ParsedCompany:
 
         full_text = _safe(errors, "재무진단 텍스트 추출", lambda: "\n".join(page.get_text() for page in doc)) or ""
         result.diagnosis = _safe(errors, "재무진단", lambda: parse_diagnosis(full_text)) or {}
+        # 게이지 이미지 판정이 우선(보통이하·낮음까지 읽힘), 판정 못 한 축만 텍스트 결과를 남긴다.
+        gauges = _safe(errors, "재무진단 게이지", lambda: parse_diagnosis_gauges(doc)) or {}
+        result.diagnosis = {key: gauges.get(key) or result.diagnosis.get(key) for key in L.DIAGNOSIS_AXES}
         result.diagnosis_commentary = _safe(errors, "재무진단 분석의견",
             lambda: parse_diagnosis_commentary(all_lines))
 
