@@ -1,9 +1,10 @@
 """회사별 데이터 저장/조회 및 검증 이슈 판정.
 
 저장소는 두 가지다:
-- `DATABASE_URL` 환경변수가 있으면 Supabase Postgres(`corp_analysis` 스키마, 전용 계정
-  corp_analysis_app). 원본 PDF도 같은 스키마의 source_pdfs 테이블에 보관해 서버가
-  재시작·재배포되어도 데이터가 남는다.
+- `DATABASE_URL` 환경변수가 있으면 Supabase personal-projects 프로젝트의 Postgres
+  (`corp_analysis` 스키마, 전용 계정 corp_analysis_app). 원본 PDF 파일은 Storage 버킷
+  `corp-analysis`(object_storage.py)에, 그 메타데이터는 source_pdfs 테이블에 둔다 — 서버가
+  재시작·재배포되어도 데이터가 남는다. 구조 규칙은 docs/SUPABASE_STRUCTURE.md.
 - 없으면 기존처럼 SQLite 한 파일(`paths.DB_PATH`) + uploads/ 폴더의 원본 PDF(테스트·오프라인용).
 
 두 경우 모두 companies 테이블에 회사 하나당 행 하나(사업자번호가 고유키)이고, `data`
@@ -18,6 +19,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import object_storage
 from .models import Company, CompanyListItem, CompanyUpdate, DiagnosisRatings, IndustryRank, ValidationIssue
 from .parser.grade_ocr import GradeResult
 from .parser.pdf_parser import ParsedCompany
@@ -249,22 +251,30 @@ def list_companies() -> list[Company]:
     return [Company.model_validate_json(row[0]) for row in rows]
 
 
+def source_pdf_path(business_no: str) -> str:
+    """버킷 안 경로 규칙 `{용도}/{식별자}.{확장자}` (docs/SUPABASE_STRUCTURE.md). 한글 파일명은
+    Storage 경로에 쓰지 않고 source_pdfs.filename에 따로 둔다."""
+    return f"source-pdfs/{business_no}.pdf"
+
+
 def save_source_pdf(business_no: str, filename: str, content: bytes) -> None:
-    """원본 PDF 보관. Postgres에서는 source_pdfs 테이블에 저장하고(서버 파일시스템이
-    재시작 때 지워지는 Render 등에서도 보존), SQLite 모드에서는 uploads/에 이미 있으므로
-    아무것도 하지 않는다."""
+    """원본 PDF 보관. Postgres 모드에서는 파일을 Storage 버킷에, 파일명·크기·경로는
+    source_pdfs 테이블에 저장한다(서버 파일시스템이 재시작 때 지워지는 Render에서도 보존).
+    SQLite 모드에서는 uploads/에 이미 있으므로 아무것도 하지 않는다."""
     if not _pg_url():
         return
+    path = source_pdf_path(business_no)
+    object_storage.upload(path, content)
     with _pg_conn() as conn:
         conn.execute(
             """
-            INSERT INTO source_pdfs (business_no, filename, size_bytes, content, uploaded_at)
+            INSERT INTO source_pdfs (business_no, filename, size_bytes, storage_path, uploaded_at)
             VALUES (%s, %s, %s, %s, now())
             ON CONFLICT (business_no) DO UPDATE SET
                 filename = excluded.filename, size_bytes = excluded.size_bytes,
-                content = excluded.content, uploaded_at = excluded.uploaded_at
+                storage_path = excluded.storage_path, uploaded_at = excluded.uploaded_at
             """,
-            (business_no, filename, len(content), content),
+            (business_no, filename, len(content), path),
         )
 
 
@@ -273,9 +283,12 @@ def load_source_pdf(company: Company) -> tuple[str, bytes] | None:
     if _pg_url():
         with _pg_conn() as conn:
             row = conn.execute(
-                "SELECT filename, content FROM source_pdfs WHERE business_no = %s", (company.business_no,)
+                "SELECT filename, storage_path FROM source_pdfs WHERE business_no = %s", (company.business_no,)
             ).fetchone()
-        return (row[0], bytes(row[1])) if row else None
+        if not row:
+            return None
+        content = object_storage.download(row[1])
+        return (row[0], content) if content is not None else None
     if not company.source_pdf:
         return None
     path = Path(company.source_pdf)

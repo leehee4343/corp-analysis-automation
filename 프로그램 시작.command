@@ -5,9 +5,13 @@
 cd "$(dirname "$0")" || exit 1
 # Finder에서 더블클릭하면 셸 설정의 PATH가 적용되지 않아 사용자 폴더에 설치한 uv·tesseract를 못 찾는다.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
-# .env에 DATABASE_URL이 있으면 Supabase(영구 저장)를, 없으면 로컬 SQLite(data/companies.db)를 쓴다.
-if [ -f .env ] && grep -q '^DATABASE_URL=' .env; then
-    export DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
+# .env에 DATABASE_URL이 있으면 Supabase(DB + Storage, 영구 저장)를, 없으면 로컬 SQLite(data/companies.db)를 쓴다.
+# 앱 실행에 필요한 값만 내보낸다(관리용 토큰·API 키는 내보내지 않음).
+if [ -f .env ]; then
+    for key in DATABASE_URL SUPABASE_URL SUPABASE_PUBLISHABLE_KEY STORAGE_BUCKET STORAGE_SERVICE_EMAIL STORAGE_SERVICE_PASSWORD; do
+        value="$(grep "^${key}=" .env | head -1 | cut -d= -f2-)"
+        [ -n "$value" ] && export "${key}=${value}"
+    done
 fi
 
 UV="$HOME/.local/bin/uv"
