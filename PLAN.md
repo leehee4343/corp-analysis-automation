@@ -380,4 +380,5 @@
   - **Storage**: 비공개 버킷 `corp-analysis`(PDF만, 20MB), 경로 `source-pdfs/{사업자번호}.pdf`(한글 파일명은 DB에). 프로젝트가 ES256 서명이라 앱 전용 JWT를 만들 수 없어, 앱 전용 Auth 서비스 계정(`svc-corp-analysis@personal-projects.local`) + 그 user id로 묶은 storage.objects 정책 4개로 버킷 한정 접근 — secret/service_role 키는 앱에 넣지 않음. 임시 버킷으로 검증: 다른 버킷 업로드 거부(RLS)·목록 0개·비로그인 접근 거부.
   - **코드**: `backend/object_storage.py`(서비스 계정 로그인 토큰 캐시, 업로드 upsert/다운로드), `storage.save_source_pdf/load_source_pdf`가 Storage + 메타데이터 테이블 사용. 실행 파일은 앱 실행용 환경변수만 `.env`에서 내보냄, `tests/conftest.py`는 Supabase 관련 변수 전부 제거.
   - **이전**: wbs-analyzer의 기업 65개·PDF 65개 → personal-projects (PDF 65개 원본과 바이트 동일 확인). 로컬(8700)·Render(환경변수 8개 교체 후 재배포) 모두 새 저장소로 전환, 업로드·원본 보기·엑셀·로그인 확인.
-  - **남은 일**: wbs-analyzer의 구 `corp_analysis` 스키마·`corp_analysis_app` 계정 삭제(사용자 확인 대기), 채팅에 노출된 Supabase 토큰 2개·Render API 키 삭제(사용자).
+  - **정리 완료(사용자 승인)**: 이전 데이터 일치 확인(65/65, 차이 1건은 검증용 재업로드한 옥산농원의 등록 시각) 후 wbs-analyzer의 구 `corp_analysis` 스키마·`corp_analysis_app` 계정 삭제 — wbs-analyzer의 public 테이블 10개는 무변경, DB 22MB. 로컬 `.env`에서 wbs-analyzer 값 제거.
+  - **남은 일(사용자)**: 채팅에 노출된 Supabase 토큰 2개·Render API 키 삭제. 로컬 `data/companies.db`(+백업 3개)·`uploads/`는 더 이상 앱이 쓰지 않는 로컬 사본(git 제외)으로 남아 있음.
