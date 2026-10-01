@@ -374,3 +374,10 @@
   - 채팅에 노출된 Supabase·Render 토큰은 작업 후 사용자가 삭제 필요.
 
 - 2026-09-30 (Claude): **헤더 회사 심볼.** `회사심볼.png`(1536×1024, 회색 배경·번짐 포함)에서 심볼 도형만 투명 배경으로 잘라 `frontend/assets/company-symbol.png`(100×128)로 저장, `/assets` 정적 경로 추가, 헤더를 `[심볼] 제목 ≡` 순서로 변경.
+
+- 2026-10-01 (Claude): **Supabase 유료 프로젝트 `personal-projects`(조직 LeeHeeSung Dev, ref `zbrmhutsgrhacepmjfau`)로 이전 + DB·스토리지 구조화.** 여러 프로그램이 함께 쓸 프로젝트라 앱 단위 분리 규칙을 정하고 `docs/SUPABASE_STRUCTURE.md`에 문서화(새 앱 추가 SQL 템플릿 포함).
+  - **DB**: `public`은 비움, 앱 레지스트리 `platform.apps`, 앱 스키마 `corp_analysis`(+ 전용 계정 `corp_analysis_app`, default privileges). `source_pdfs`는 메타데이터만(filename·size_bytes·storage_path) — **PDF 파일은 DB에 넣지 않음**(사용자 확정).
+  - **Storage**: 비공개 버킷 `corp-analysis`(PDF만, 20MB), 경로 `source-pdfs/{사업자번호}.pdf`(한글 파일명은 DB에). 프로젝트가 ES256 서명이라 앱 전용 JWT를 만들 수 없어, 앱 전용 Auth 서비스 계정(`svc-corp-analysis@personal-projects.local`) + 그 user id로 묶은 storage.objects 정책 4개로 버킷 한정 접근 — secret/service_role 키는 앱에 넣지 않음. 임시 버킷으로 검증: 다른 버킷 업로드 거부(RLS)·목록 0개·비로그인 접근 거부.
+  - **코드**: `backend/object_storage.py`(서비스 계정 로그인 토큰 캐시, 업로드 upsert/다운로드), `storage.save_source_pdf/load_source_pdf`가 Storage + 메타데이터 테이블 사용. 실행 파일은 앱 실행용 환경변수만 `.env`에서 내보냄, `tests/conftest.py`는 Supabase 관련 변수 전부 제거.
+  - **이전**: wbs-analyzer의 기업 65개·PDF 65개 → personal-projects (PDF 65개 원본과 바이트 동일 확인). 로컬(8700)·Render(환경변수 8개 교체 후 재배포) 모두 새 저장소로 전환, 업로드·원본 보기·엑셀·로그인 확인.
+  - **남은 일**: wbs-analyzer의 구 `corp_analysis` 스키마·`corp_analysis_app` 계정 삭제(사용자 확인 대기), 채팅에 노출된 Supabase 토큰 2개·Render API 키 삭제(사용자).
