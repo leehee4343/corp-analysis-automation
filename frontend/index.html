@@ -506,7 +506,7 @@ body.modal-open{overflow:hidden;}
 
     <!-- 대시보드 -->
     <section class="view" data-view="dashboard" hidden>
-      <div id="dashProjectInfo"></div>
+      <div id="dashProjectInfo" hidden></div>
       <div class="todo-grid cols-4" id="dashKpis"></div>
       <div class="card-grid dash-charts">
         <div class="app-card">
@@ -2548,11 +2548,9 @@ function renderUploadTarget(){
 function renderDashProjectInfo(){
   const el = document.getElementById('dashProjectInfo');
   const p = currentProject();
-  if(!p){
-    el.innerHTML = noticeBox('info', null, projects.length ? '전체 프로젝트 기준 현황입니다. 사이드바에서 프로젝트를 선택하면 해당 프로젝트 기준으로 볼 수 있습니다.'
-      : '아직 등록된 프로젝트가 없습니다. 프로젝트 관리 > 프로젝트 목록에서 지원사업 등 프로젝트를 먼저 등록해 주세요.', null);
-    return;
-  }
+  // 전체 프로젝트 기준일 때는 안내 문구 없이 영역 자체를 숨긴다(사용자 요청). 프로젝트를 고르면 그 프로젝트 요약만 보여 준다.
+  el.hidden = !p;
+  if(!p){ el.innerHTML = ''; return; }
   el.innerHTML = card(p.name, kvGrid([
     {label:'상태', html:`<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
     {label:'참여 기업', value:`${p.company_count.toLocaleString('ko-KR')}개사`},
