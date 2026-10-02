@@ -2195,7 +2195,7 @@ function initProjects(){
     columns:[
       {key:'name', label:'프로젝트명', render:p => `<a href="#/companies" data-select-project="${p.id}">${esc(p.name)}</a>${p.id === currentProjectId ? ' <span class="badge-info">선택됨</span>' : ''}`},
       {key:'region', label:'지역', render:p => val(p.region)},
-      {key:'period', label:'사업기간', render:p => esc(projectPeriod(p))},
+      {key:'period', label:'지원기간', render:p => esc(projectPeriod(p))},
       {key:'status', label:'상태', render:p => `<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
       {key:'company_count', label:'참여 기업', render:p => `${p.company_count.toLocaleString('ko-KR')}개사`},
       {key:'description', label:'설명', wrap:true, render:p => val(p.description)},
@@ -2235,7 +2235,7 @@ function openProjectForm(project){
       <div class="form-group"><label class="form-label" for="pfRegion">지역</label><input class="form-control" id="pfRegion" maxlength="100" value="${esc(p.region || '')}" placeholder="예) 충북"></div>
       <div class="form-group"><label class="form-label" for="pfStatus">상태</label>
         <select class="form-control" id="pfStatus">${['준비', '진행중', '종료'].map(st => `<option ${st === p.status ? 'selected' : ''}>${st}</option>`).join('')}</select></div>
-      <div class="form-group col-full"><span class="form-label" id="pfPeriodLabel">사업기간</span>
+      <div class="form-group col-full"><span class="form-label" id="pfPeriodLabel">지원기간</span>
         <div class="form-date-range" role="group" aria-labelledby="pfPeriodLabel">
           <input class="form-control" type="date" id="pfStart" value="${esc((p.start_date || '').slice(0, 10))}" aria-label="시작일">
           <span aria-hidden="true">~</span>
@@ -2373,7 +2373,7 @@ function renderDashProjectInfo(){
   el.innerHTML = card(p.name, kvGrid([
     {label:'상태', html:`<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
     {label:'참여 기업', value:`${p.company_count.toLocaleString('ko-KR')}개사`},
-    {label:'지역', value:p.region || '-'}, {label:'사업기간', value:projectPeriod(p)},
+    {label:'지역', value:p.region || '-'}, {label:'지원기간', value:projectPeriod(p)},
     p.description ? {label:'설명', value:p.description, wide:true} : null,
   ]), '현재 프로젝트');
 }
