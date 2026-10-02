@@ -388,6 +388,16 @@ def remove_company_from_project(project_id: int, business_no: str) -> bool:
     return count > 0
 
 
+def project_names_by_company() -> dict[str, list[str]]:
+    """모든 기업의 참여 프로젝트 이름 — 목록 화면용으로 쿼리 한 번에 가져온다."""
+    rows, _ = _run("SELECT pc.business_no, p.name FROM project_companies pc JOIN projects p ON p.id = pc.project_id "
+                   "ORDER BY p.created_at DESC", fetch="all")
+    out: dict[str, list[str]] = {}
+    for bn, name in rows:
+        out.setdefault(bn, []).append(name)
+    return out
+
+
 def projects_of_company(business_no: str) -> list[dict]:
     rows, _ = _run("SELECT p.id, p.name, p.status FROM projects p JOIN project_companies pc ON pc.project_id = p.id "
                    "WHERE pc.business_no = %s ORDER BY p.created_at DESC", (business_no,), fetch="all")
@@ -419,6 +429,42 @@ def save_source_pdf(business_no: str, filename: str, content: bytes) -> None:
             """,
             (business_no, filename, len(content), path),
         )
+
+
+def list_source_pdfs(project_id: int | None = None) -> list[dict]:
+    """업로드된 원본 PDF 목록(기업당 1개, 최신 업로드). project_id가 있으면 그 프로젝트 참여 기업만.
+    반환: [{business_no, company_name, filename, size_bytes, uploaded_at}] — 최근 업로드순."""
+    companies = {c.business_no: c for c in list_companies(project_id)}
+    if _pg_url():
+        rows, _ = _run("SELECT business_no, filename, size_bytes, uploaded_at FROM source_pdfs", fetch="all")
+        items = [{"business_no": r[0], "filename": r[1], "size_bytes": r[2], "uploaded_at": _iso(r[3])}
+                 for r in rows if r[0] in companies]
+    else:  # SQLite 모드: 원본은 uploads/ 파일
+        items = []
+        for c in companies.values():
+            path = Path(c.source_pdf) if c.source_pdf else None
+            if path and path.exists():
+                items.append({"business_no": c.business_no, "filename": path.name, "size_bytes": path.stat().st_size,
+                              "uploaded_at": c.parsed_at.isoformat()})
+    for item in items:
+        item["company_name"] = companies[item["business_no"]].company_name
+    return sorted(items, key=lambda i: i["uploaded_at"] or "", reverse=True)
+
+
+def delete_company_and_pdf(business_no: str) -> bool:
+    """PDF 업로드 화면의 삭제: 원본 PDF(Storage·메타데이터 또는 uploads/ 파일)와 기업 분석 정보를 함께 지우고,
+    모든 프로젝트 참여 명단에서도 빠진다. 반환: 기업이 있었는지."""
+    company = load_company(business_no)
+    if company is None:
+        return False
+    if _pg_url():
+        row, _ = _run("SELECT storage_path FROM source_pdfs WHERE business_no = %s", (business_no,), fetch="one")
+        if row:
+            object_storage.delete(row[0])
+        _run("DELETE FROM source_pdfs WHERE business_no = %s", (business_no,))
+    elif company.source_pdf and Path(company.source_pdf).exists():
+        Path(company.source_pdf).unlink()
+    return delete_company(business_no)
 
 
 def load_source_pdf(company: Company) -> tuple[str, bytes] | None:

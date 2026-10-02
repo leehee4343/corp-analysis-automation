@@ -559,7 +559,7 @@ body.modal-open{overflow:hidden;}
           <span class="btn-secondary" aria-hidden="true">파일 선택</span>
         </div>
       </div>
-      <div class="app-card">
+      <div class="app-card" id="uploadQueueCard" hidden>
         <div class="app-card-header"><h2 class="card-title">처리 현황</h2><span class="card-meta" id="uploadQueueMeta">대기 0건 · 완료 0건 · 오류 0건</span></div>
         <div class="table-scroll-wrapper">
           <table class="data-table" aria-label="업로드 처리 현황">
@@ -568,9 +568,23 @@ body.modal-open{overflow:hidden;}
           </table>
         </div>
       </div>
-      <div class="app-card">
+      <div class="app-card" id="uploadLogCard" hidden>
         <div class="app-card-header"><h2 class="card-title">처리 로그</h2></div>
         <ol class="process-log" id="uploadLog"><li class="tone-muted">파일을 등록하면 처리 과정이 여기에 표시됩니다.</li></ol>
+      </div>
+      <div class="table-card">
+        <div class="app-card-header"><h2 class="card-title">업로드된 PDF 목록</h2><span class="card-meta" id="pdfScope">-</span></div>
+        <div class="table-header-action-row">
+          <div class="grid-page-summary" id="pdfSummary">1 / 1 (총 0개)</div>
+          <div class="table-actions">
+            <label class="sr-only" for="pdfPerPage">페이지당 건수</label>
+            <select class="select-per-page" id="pdfPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option></select>
+            <button type="button" class="btn-secondary" id="pdfColumns">열 설정</button>
+            <button type="button" class="btn-delete" id="btnPdfDeleteSelected" disabled>선택 삭제</button>
+          </div>
+        </div>
+        <div class="table-scroll-wrapper data-grid" id="pdfGrid"></div>
+        <div class="table-pagination-row"><nav class="pagination-controls" id="pdfPagination" aria-label="표 페이지 이동"></nav></div>
       </div>
     </section>
 
@@ -905,7 +919,7 @@ class DataGrid {
         const active = this.sort.key === col.sortKey;
         th.setAttribute('aria-sort', active ? (this.sort.order === 'asc' ? 'ascending' : 'descending') : 'none');
       }
-      th.innerHTML = `<span class="th-inner"><span>${esc(col.label)}</span>${sortable ? ICONS.sort : ''}</span><span class="col-resizer" aria-hidden="true"></span>`;
+      th.innerHTML = `<span class="th-inner">${col.headerHtml || `<span>${esc(col.label)}</span>`}${sortable ? ICONS.sort : ''}</span><span class="col-resizer" aria-hidden="true"></span>`;
       th.title = sortable ? `${col.label} 정렬 · 끌어서 열 이동 · Alt+←/→ 이동` : `${col.label} · 끌어서 열 이동 · Alt+←/→ 이동`;
       if(this.widths[col.key]) th.style.width = `${this.widths[col.key]}px`;
       tr.appendChild(th);
@@ -1211,7 +1225,7 @@ function handleRoute(){
   else if(route.view === 'mailing') loadMailing();
   else if(route.view === 'issues') loadIssues();
   else if(route.view === 'projects') loadProjectsView();
-  else if(route.view === 'upload') renderUploadTarget();
+  else if(route.view === 'upload'){ renderUploadTarget(); loadPdfList(); }
   else if(route.view === 'detail') loadDetail(route.businessNo, route.menu);
 }
 
@@ -1733,6 +1747,8 @@ function enqueueFiles(fileList){
   if(pdfs.length < files.length) showToast('warning', `PDF가 아닌 파일 ${files.length - pdfs.length}개는 제외했습니다.`);
   if(!pdfs.length) return;
   if(!uploadQueue.length) document.getElementById('uploadLog').innerHTML = '';
+  document.getElementById('uploadQueueCard').hidden = false;
+  document.getElementById('uploadLogCard').hidden = false;
   pdfs.forEach(file => uploadQueue.push({file, name:file.name, status:'pending', message:'대기 중', company:null, projectId:currentProjectId}));
   renderUploadQueue();
   processUploadQueue();
@@ -1792,6 +1808,8 @@ async function processUploadQueue(){
     renderUploadQueue();
   }
   uploadRunning = false;
+  loadPdfList();
+  loadProjects();
   invalidateCaches();
   refreshIssueCount();
   if(done && !failed) showToast('success', `${done}건을 등록했습니다.`);
@@ -2265,6 +2283,108 @@ async function openAddExisting(screen){
   modal.root.querySelector('#addAll').addEventListener('change', e => rows.querySelectorAll('.add-pick').forEach(cb => {
     cb.checked = e.target.checked; if(cb.checked) picked.add(cb.value); else picked.delete(cb.value); }));
 }
+/* 업로드된 PDF 목록: 현재 프로젝트(전체 프로젝트면 모두)의 원본 PDF. 삭제 = PDF + 기업 정보 + 모든 프로젝트 참여 삭제 */
+const pdfState = {items:[], page:1, pageSize:10, selected:new Set()};
+let pdfGrid = null;
+function fmtSize(bytes){
+  if(bytes == null) return '-';
+  return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+function initPdfList(){
+  pdfGrid = new DataGrid(document.getElementById('pdfGrid'), {
+    ariaLabel:'업로드된 PDF 목록', storageKey:'pdfs', frozen:'filename', emptyText:'업로드된 PDF가 없습니다.',
+    columns:[
+      {key:'select', label:'선택', headerHtml:'<input type="checkbox" id="pdfAll" aria-label="이 페이지 전체 선택">',
+        render:i => `<input type="checkbox" class="pdf-pick" value="${esc(i.business_no)}" ${pdfState.selected.has(i.business_no) ? 'checked' : ''} aria-label="${esc(i.filename)} 선택">`},
+      {key:'no', label:'No', render:(i, n) => ((pdfState.page - 1) * pdfState.pageSize + n + 1).toLocaleString('ko-KR')},
+      {key:'filename', label:'파일명', render:i => esc(i.filename)},
+      {key:'company_name', label:'기업명', render:i => `<a href="${detailHref(i.business_no, 'upload')}">${esc(i.company_name)}</a>`},
+      {key:'business_no', label:'사업자번호', render:i => esc(i.business_no)},
+      {key:'size', label:'크기', render:i => fmtSize(i.size_bytes)},
+      {key:'uploaded_at', label:'업로드 일시', render:i => fmtDateTime(i.uploaded_at)},
+      {key:'projects', label:'참여 프로젝트', render:i => i.projects?.length
+        ? `<span class="chip-list">${i.projects.map(n => `<span class="${currentProject()?.name === n ? 'badge-info' : 'badge-tag'}">${esc(n)}</span>`).join('')}</span>` : '-'},
+      {key:'actions', label:'관리', render:i =>
+        `<a class="btn-file-preview" href="/api/companies/${encodeURIComponent(i.business_no)}/source-pdf" target="_blank" rel="noopener">바로보기</a>` +
+        `<button type="button" class="btn-row-del" data-delete-pdf="${esc(i.business_no)}">삭제</button>`},
+    ],
+  });
+  pdfGrid.attachColumnMenu(document.getElementById('pdfColumns'));
+  const grid = document.getElementById('pdfGrid');
+  grid.addEventListener('change', e => {
+    if(e.target.id === 'pdfAll'){
+      grid.querySelectorAll('.pdf-pick').forEach(cb => { cb.checked = e.target.checked; if(cb.checked) pdfState.selected.add(cb.value); else pdfState.selected.delete(cb.value); });
+    }else if(e.target.classList.contains('pdf-pick')){
+      if(e.target.checked) pdfState.selected.add(e.target.value); else pdfState.selected.delete(e.target.value);
+    }
+    syncPdfSelection();
+  });
+  grid.addEventListener('click', e => {
+    const del = e.target.closest('[data-delete-pdf]');
+    if(del) deletePdfs([del.dataset.deletePdf]);
+  });
+  document.getElementById('btnPdfDeleteSelected').addEventListener('click', () => deletePdfs([...pdfState.selected]));
+  document.getElementById('pdfPerPage').addEventListener('change', e => { pdfState.pageSize = Number(e.target.value); pdfState.page = 1; renderPdfList(); });
+}
+function syncPdfSelection(){
+  const btn = document.getElementById('btnPdfDeleteSelected');
+  btn.disabled = !pdfState.selected.size;
+  btn.textContent = pdfState.selected.size ? `선택 삭제 (${pdfState.selected.size})` : '선택 삭제';
+  const picks = [...document.querySelectorAll('#pdfGrid .pdf-pick')];
+  const all = document.getElementById('pdfAll');
+  if(all){ all.checked = picks.length > 0 && picks.every(cb => cb.checked); all.indeterminate = !all.checked && picks.some(cb => cb.checked); }
+}
+async function loadPdfList(){
+  if(!pdfGrid) return;
+  const seq = pdfState.seq = (pdfState.seq || 0) + 1;
+  pdfGrid.setLoading(true);
+  try{
+    const items = await api(withProject('/api/pdfs'));
+    if(seq !== pdfState.seq) return;
+    pdfState.items = items;
+    const keys = new Set(items.map(i => i.business_no));
+    pdfState.selected = new Set([...pdfState.selected].filter(k => keys.has(k)));
+    document.getElementById('pdfScope').textContent = currentProject() ? `${currentProject().name} 기준` : '전체 프로젝트 기준';
+    renderPdfList();
+  }catch(e){
+    showToast('danger', `업로드된 PDF 목록을 불러오지 못했습니다. ${e.message}`);
+  }finally{
+    if(seq === pdfState.seq) pdfGrid.setLoading(false);
+  }
+}
+function renderPdfList(){
+  const {items, pageSize} = pdfState;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  pdfState.page = Math.min(pdfState.page, totalPages);
+  pdfGrid.setItems(items.slice((pdfState.page - 1) * pageSize, pdfState.page * pageSize));
+  document.getElementById('pdfSummary').textContent = summaryText(items.length, pdfState.page, pageSize);
+  renderPagination(document.getElementById('pdfPagination'), items.length, pdfState.page, pageSize, p => { pdfState.page = p; renderPdfList(); });
+  syncPdfSelection();
+}
+async function deletePdfs(businessNos){
+  const targets = pdfState.items.filter(i => businessNos.includes(i.business_no));
+  if(!targets.length) return;
+  const here = currentProject()?.name;
+  const shared = targets.filter(i => i.projects.some(n => n !== here));
+  const names = targets.slice(0, 3).map(i => i.company_name).join(', ') + (targets.length > 3 ? ` 외 ${targets.length - 3}개` : '');
+  const ok = await confirmModal({
+    title:'PDF 삭제', tone:'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
+    lead:`PDF ${targets.length}개와 해당 기업 정보를 삭제하시겠습니까?`,
+    text:`${names} — 원본 PDF와 기업 분석 정보가 데이터베이스에서 삭제되며 되돌릴 수 없습니다.`,
+    note: shared.length
+      ? `이 중 ${shared.length}개 기업은 다른 프로젝트(${[...new Set(shared.flatMap(i => i.projects.filter(n => n !== here)))].join(', ')})에도 참여 중이며, 그 프로젝트에서도 함께 사라집니다.`
+      : '다시 필요하면 PDF를 다시 업로드하면 됩니다.',
+  });
+  if(!ok) return;
+  try{
+    const res = await api('/api/pdfs/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({business_nos:targets.map(i => i.business_no)})});
+    targets.forEach(i => pdfState.selected.delete(i.business_no));
+    showToast('success', `PDF ${res.deleted}개와 기업 정보를 삭제했습니다.`);
+    invalidateCaches(); refreshIssueCount(); await loadProjects(); renderUploadTarget(); loadPdfList();
+  }catch(e){
+    showToast('danger', `삭제하지 못했습니다. ${e.message}`);
+  }
+}
 function renderUploadTarget(){
   const el = document.getElementById('uploadTargetCard');
   const project = currentProject();
@@ -2310,6 +2430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initIssues();
   initUpload();
   initProjects();
+  initPdfList();
   window.addEventListener('hashchange', handleRoute);
   if(!location.hash) history.replaceState(null, '', '#/dashboard');
   loadProjects().then(() => { handleRoute(); refreshIssueCount(); });

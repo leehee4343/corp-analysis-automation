@@ -73,6 +73,13 @@ def upload(path: str, content: bytes, content_type: str = "application/pdf") -> 
     res.raise_for_status()
 
 
+def delete(path: str) -> None:
+    """없는 경로를 지워도 오류로 보지 않는다(이미 삭제된 경우)."""
+    res = httpx.delete(_object_url(path), headers=_headers(), timeout=30)
+    if res.status_code not in (200, 204, 400, 404):
+        res.raise_for_status()
+
+
 def download(path: str) -> bytes | None:
     res = httpx.get(_object_url(path, authenticated=True), headers=_headers(), timeout=60)
     if res.status_code in (400, 404):
