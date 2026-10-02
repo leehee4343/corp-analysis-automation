@@ -348,11 +348,13 @@ a.todo-card:visited{color:var(--text-main);}
 .fill-blue{background:#1976d2;} .fill-sky{background:#38bdf8;} .fill-cyan{background:#0284c7;} .fill-green{background:#00b894;}
 .fill-emerald{background:#10b981;} .fill-teal{background:#2dd4bf;} .fill-orange{background:#ff7a00;} .fill-amber{background:#f59e0b;}
 .fill-red{background:#ef4444;} .fill-gray{background:#cbd5e1;}
+.fill-orange-2{background:#f97316;} .fill-yellow{background:#fbbf24;} .fill-rose{background:#f87171;}
 .chart-table{margin-top:20px; padding-top:16px; border-top:1px solid var(--border-light);}
 .chart-table-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;}
 .chart-table-title{font-size:14px; font-weight:700; color:var(--text-title);}
 .chart-table .data-table tbody th{font-weight:400; background:#f8fafc; white-space:nowrap;}
 .chart-table .data-table :is(td, th).is-total{background:#f8fafc;}
+.chart-table .data-table th .legend-dot{margin-right:6px; vertical-align:0;}
 .chart-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--text-muted); margin-bottom:12px;}
 .chart-legend span{display:inline-flex; align-items:center; gap:6px;}
 .legend-dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
@@ -1321,21 +1323,28 @@ function renderIndustryChart(byIndustry){
   const rest = entries.slice(6).reduce((sum, [, n]) => sum + n, 0);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
   const pct = n => `${pct1(n, total).toFixed(1)}%`;
-  const rows = top.map(([name, n]) => ({label:name, value:n, fill:'fill-blue', suffix:'개', unit:pct(n)}));
+  const rows = top.map(([name, n], i) => ({label:name, value:n, fill:CHART_CYCLE[i % CHART_CYCLE.length], suffix:'개', unit:pct(n)}));
   if(rest) rows.push({label:'기타', value:rest, fill:'fill-gray', suffix:'개', unit:pct(rest)});
   el.innerHTML = columnChartHtml(rows, '업종별 등록 기업 수') + chartDataTable('industry', '업종별 등록 현황',
     [{label:'업종'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
     [...rows.map(r => [r.label, r.value, pct1(r.value, total)]), ['합계', total, 100]],
-    {total:true, transpose:true, subtitle:`${dashScope()} · 상위 6개 업종 외는 기타`});
+    {total:true, transpose:true, fills:rows.map(r => r.fill), subtitle:`${dashScope()} · 상위 6개 업종 외는 기타`});
 }
-// 신용등급 분포: 실제 등급(10단계 이상)을 우량 순 세로 막대로. 막대 색은 등급 구간(A~BBB/BB/B/CCC 이하).
+// 신용등급 분포: 실제 등급(10단계 이상)을 우량 순 세로 막대로. 막대 색은 등급 구간(A~BBB 그린/BB 블루/B 오렌지/CCC 이하 레드),
+// 같은 구간 안에서는 +·무·- 순으로 진하기를 달리한다.
 function renderGradeChart(grades, total){
   const el = document.getElementById('gradeChart');
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
   const bandFill = {'A~BBB':'fill-green', 'BB':'fill-blue', 'B':'fill-orange', 'CCC 이하':'fill-red'};
+  const bandTone = {'A~BBB':'green', 'BB':'blue', 'B':'orange', 'CCC 이하':'red'};
+  const gradeFill = g => {
+    const tone = bandTone[gradeBand(g)];
+    if(!tone) return 'fill-gray';
+    return CHART_SHADES[tone][g.endsWith('+') ? 0 : g.endsWith('-') ? 2 : 1];
+  };
   const rows = Object.entries(grades || {}).map(([g, n]) => ({
     label: g === '미평가' ? '미평가' : g.toUpperCase(), value:n, suffix:'개', unit:`${pct1(n, total).toFixed(1)}%`,
-    fill: g === '미평가' ? 'fill-gray' : (bandFill[gradeBand(g)] || 'fill-gray'),
+    fill: g === '미평가' ? 'fill-gray' : gradeFill(g),
   }));
   const legend = [['A~BBB', 'fill-green'], ['BB', 'fill-blue'], ['B', 'fill-orange'], ['CCC 이하', 'fill-red']]
     .map(([k, f]) => `<span><i class="legend-dot ${f}"></i>${k}</span>`).join('');
@@ -1343,8 +1352,12 @@ function renderGradeChart(grades, total){
     [{label:'신용등급'}, {label:'등급 구간'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
     [...Object.entries(grades || {}).map(([g, n]) => [g === '미평가' ? '미평가' : g.toUpperCase(), g === '미평가' ? '-' : gradeBand(g), n, pct1(n, total)]),
      ['합계', '', total, 100]],
-    {total:true, transpose:true, subtitle:`${dashScope()} · 우량 등급 순`});
+    {total:true, transpose:true, fills:rows.map(r => r.fill), subtitle:`${dashScope()} · 우량 등급 순`});
 }
+// 차트 색(가이드 2.5 팔레트, 블루·그린·오렌지·레드 계열). 항목 구분용 순환 색과 계열별 진하기 3단계.
+const CHART_CYCLE = ['fill-blue', 'fill-green', 'fill-orange', 'fill-red', 'fill-sky', 'fill-amber', 'fill-teal', 'fill-rose'];
+const CHART_SHADES = {green:['fill-emerald', 'fill-green', 'fill-teal'], blue:['fill-blue', 'fill-cyan', 'fill-sky'],
+  orange:['fill-orange', 'fill-orange-2', 'fill-amber'], red:['fill-red', 'fill-rose', 'fill-rose']};
 // 세로 막대(가로로 나란히). rows {label, value, fill, suffix, unit} — 위에 값(+suffix)과 보조값(unit), 아래에 구간 이름.
 function columnChartHtml(rows, ariaLabel, legend){
   const max = Math.max(...rows.map(r => Math.abs(r.value || 0)), 1);
@@ -1361,15 +1374,17 @@ function columnChartHtml(rows, ariaLabel, legend){
 function renderRevenueChart(bands, total){
   const el = document.getElementById('revenueChart');
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
+  const BAND_FILLS = ['fill-red', 'fill-orange', 'fill-amber', 'fill-green', 'fill-cyan', 'fill-blue'];
   const rows = bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => ({
-    label:b.label, value:b.count, suffix:'개', unit:`${pct1(b.count, total).toFixed(1)}%`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
+    label:b.label, value:b.count, suffix:'개', unit:`${pct1(b.count, total).toFixed(1)}%`,
+    fill: b.label === '매출 정보 없음' ? 'fill-gray' : BAND_FILLS[bands.indexOf(b)] || 'fill-blue',
   }));
   const range = b => b.label === '매출 정보 없음' ? '-'
     : [b.min != null ? `${fmtNum(b.min)} 이상` : '', b.max != null ? `${fmtNum(b.max)} 미만` : ''].filter(Boolean).join(' ~ ');
   el.innerHTML = columnChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`) + chartDataTable('revenue', '매출액 구간별 분포',
     [{label:'매출액 구간'}, {label:'매출액 범위(백만원)'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
     [...bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => [b.label, range(b), b.count, pct1(b.count, total)]), ['합계', '', total, 100]],
-    {total:true, transpose:true, subtitle:`${dashScope()} · 최근 결산연도 매출액 기준`});
+    {total:true, transpose:true, fills:rows.map(r => r.fill), subtitle:`${dashScope()} · 최근 결산연도 매출액 기준`});
   el.querySelectorAll('.col-item').forEach((row, i) => {
     const band = bands.filter(b => b.count || b.label !== '매출 정보 없음')[i];
     if(!band || band.label === '매출 정보 없음' || !band.count) return;
@@ -1923,6 +1938,7 @@ function fmtDecimal(n){
 // 그래프 밑 데이터 표 + 엑셀 다운로드 (규칙: 모든 그래프 밑에는 그 내용을 담은 표와 엑셀 다운로드가 있어야 한다).
 // id: 그래프별 고정 키, columns: [{label}], rows: 원값 배열(숫자는 숫자 그대로 → 엑셀에서도 숫자 셀).
 // opts.transpose: 항목(첫 열 값)을 가로 열로 — 세로 막대 그래프처럼 항목이 왼쪽→오른쪽으로 놓인다.
+// opts.fills: 항목별 막대 색(전치 표의 열 머리글에 같은 색 점), opts.rowFills: 전치 표의 행 머리글 색 점.
 // opts.total: 마지막 항목이 합계(합계 칸은 옅은 배경, 굵기는 400 — 가이드 5.3), opts.fileTitle/subtitle: 엑셀 제목·부제.
 const CHART_EXPORTS = new Map();
 function chartDataTable(id, title, columns, rows, opts = {}){
@@ -1936,13 +1952,15 @@ function chartDataTable(id, title, columns, rows, opts = {}){
   const cell = (v, d) => v == null || v === '' ? '-' : typeof v !== 'number' ? esc(v)
     : d ? v.toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d}) : fmtNum(v);
   const isTotal = (ri, ci) => opts.total && (opts.transpose ? ci === heads.length - 1 : ri === body.length - 1);
+  const dot = f => f ? `<i class="legend-dot ${f}" aria-hidden="true"></i>` : '';
+  const headDot = ci => opts.transpose && ci > 0 ? dot(opts.fills?.[ci - 1]) : '';
   return `<div class="chart-table">
     <div class="chart-table-head"><h3 class="chart-table-title">${esc(title)} 데이터</h3>
       <button type="button" class="btn-secondary" data-chart-export="${esc(id)}">${ICONS.excel}엑셀 다운로드</button></div>
     <div class="table-scroll-wrapper"><table class="data-table" aria-label="${esc(title)} 데이터">
-      <thead><tr>${heads.map((h, ci) => `<th scope="col"${isTotal(-1, ci) ? ' class="is-total"' : ''}>${esc(h)}</th>`).join('')}</tr></thead>
+      <thead><tr>${heads.map((h, ci) => `<th scope="col"${isTotal(-1, ci) ? ' class="is-total"' : ''}>${headDot(ci)}${esc(h)}</th>`).join('')}</tr></thead>
       <tbody>${body.map((r, ri) => `<tr>${r.map((v, ci) => ci === 0 && opts.transpose
-        ? `<th scope="row">${cell(v)}</th>`
+        ? `<th scope="row">${dot(opts.rowFills?.[ri])}${cell(v)}</th>`
         : `<td${isTotal(ri, ci) ? ' class="is-total"' : ''}>${cell(v, decimalsOf(ri, ci))}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
   </div>`;
@@ -2072,15 +2090,15 @@ function renderDetail(c, from){
       + chartDataTable('detail-trend', '연도별 매출 · 영업이익',
         [{label:'연도'}, {label:'매출액(백만원)'}, {label:'영업이익(백만원)'}],
         years.map(y => [y, isNum(revenue[y]) ? revenue[y] : null, isNum(op[y]) ? op[y] : null]),
-        {transpose:true, fileTitle:`${c.company_name} 연도별 매출·영업이익`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
+        {transpose:true, rowFills:['fill-blue', 'fill-green'], fileTitle:`${c.company_name} 연도별 매출·영업이익`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
     : '<div class="empty-text">매출 · 이익 데이터가 없습니다.</div>', '단위: 백만원'));
 
   const peer = c.peer_comparison || {};
   const peerRows = [
     {label:'조회기업', value:peer['조회기업']?.['매출액'], fill:'fill-blue'},
-    {label:'상위 25%', value:peer['상위25%']?.['매출액'], fill:'fill-amber'},
-    {label:'업종 평균', value:peer['평균']?.['매출액'], fill:'fill-sky'},
-    {label:'하위 25%', value:peer['하위25%']?.['매출액'], fill:'fill-teal'},
+    {label:'상위 25%', value:peer['상위25%']?.['매출액'], fill:'fill-green'},
+    {label:'업종 평균', value:peer['평균']?.['매출액'], fill:'fill-orange'},
+    {label:'하위 25%', value:peer['하위25%']?.['매출액'], fill:'fill-red'},
   ].filter(r => r.value != null);
   const rank = c.industry_rank || {};
   // PDF 업계순위 표는 조회기업 앞뒤 순위만 보여 주고 전체 업체 수는 없다 → 'N개사 중'으로 표기하지 않는다
@@ -2091,7 +2109,7 @@ function renderDetail(c, from){
   let peerBody = peerRows.length
     ? columnChartHtml(peerRows, '동종업계 매출액 비교') + chartDataTable('detail-peer', '동종업계 매출액 비교',
         [{label:'구분'}, {label:'매출액(백만원)'}], peerRows.map(r => [r.label, r.value]),
-        {transpose:true, fileTitle:`${c.company_name} 동종업계 매출액 비교`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
+        {transpose:true, fills:peerRows.map(r => r.fill), fileTitle:`${c.company_name} 동종업계 매출액 비교`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
     : '<div class="empty-text">동종업계 비교 데이터가 없습니다.</div>';
   if(c.industry_rank_list?.length) peerBody += `<h3 class="subsection-title">업계순위</h3>` + simpleTable('업계순위', rankHeaders, c.industry_rank_list.map(rankRow));
   if(c.industry_top5?.length) peerBody += `<h3 class="subsection-title">동종업계 매출액 상위 5개사</h3>` + simpleTable('동종업계 상위 5개사', rankHeaders, c.industry_top5.map(rankRow));
