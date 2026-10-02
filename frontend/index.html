@@ -92,6 +92,10 @@ body.sidebar-collapsed .nav-text{display:none;}
 .project-switch{display:flex; align-items:center; gap:8px;}
 .project-switch-label{font-size:13px; color:var(--text-muted); white-space:nowrap;}
 .project-switch .filter-select{width:320px; max-width:32vw;}
+/* 사용자 · 로그아웃: 로그아웃은 일반 링크(2.6) — 레드·배경·테두리 없이 */
+.header-user{display:flex; align-items:center; gap:12px; padding-left:16px; border-left:1px solid var(--border-light); height:24px; white-space:nowrap;}
+.header-user-name{font-size:13px; color:var(--text-main);}
+.header-logout{font-size:13px;}
 .btn-row-del{height:28px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid #475569; background:#475569; color:#fff; font-size:13px; font-weight:400; cursor:pointer;}
 .btn-row-del:hover{background:#334155; border-color:#334155;}
 :is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download) + .btn-row-del{margin-left:8px;}
@@ -480,6 +484,10 @@ body.modal-open{overflow:hidden;}
       <label class="project-switch-label" for="projectSelect">현재 프로젝트 :</label>
       <select class="filter-select" id="projectSelect"><option value="">전체 프로젝트</option></select>
     </div>
+    <div class="header-user" id="headerUser" hidden>
+      <span class="header-user-name" id="headerUserName"></span>
+      <a href="/login" class="header-logout" id="btnLogout">로그아웃</a>
+    </div>
   </div>
 </header>
 
@@ -692,6 +700,10 @@ function storageSet(key, value){ try{ localStorage.setItem(key, value); }catch(e
 
 async function api(path, options = {}){
   const res = await fetch(path, options);
+  if(res.status === 401 && !path.startsWith('/api/log')){
+    location.replace('/login');  // 로그인 세션이 끝났으면 로그인 화면으로
+    throw new Error('로그인이 필요합니다.');
+  }
   if(!res.ok){
     let detail = null;
     try{ detail = (await res.json())?.detail; }catch(e){ /* 본문 없음 */ }
@@ -1321,6 +1333,19 @@ const SUMMARY_ICONS = {
 };
 function summaryIcon(name, tone){
   return `<span class="summary-icon tone-${tone}" aria-hidden="true"><svg viewBox="0 0 24 24">${SUMMARY_ICONS[name]}</svg></span>`;
+}
+// 로그인 사용자 · 로그아웃 (로그인을 쓰는 환경에서만 표시)
+async function initSession(){
+  try{
+    const s = await api('/api/session');
+    if(!s.auth_enabled) return;
+    document.getElementById('headerUserName').textContent = `${s.user || ''}님`;
+    document.getElementById('headerUser').hidden = false;
+  }catch(e){ /* 세션 확인 실패는 화면 동작에 영향 없음 */ }
+  document.getElementById('btnLogout').addEventListener('click', async e => {
+    e.preventDefault();
+    try{ await fetch('/api/logout', {method:'POST'}); }finally{ location.replace('/login'); }
+  });
 }
 function renderDashKpis(s){
   const cards = [
@@ -2571,6 +2596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initUpload();
   initProjects();
   initPdfList();
+  initSession();
   window.addEventListener('hashchange', handleRoute);
   if(!location.hash) history.replaceState(null, '', '#/dashboard');
   loadProjects().then(() => { handleRoute(); refreshIssueCount(); });

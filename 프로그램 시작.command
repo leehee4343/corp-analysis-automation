@@ -6,9 +6,9 @@ cd "$(dirname "$0")" || exit 1
 # Finder에서 더블클릭하면 셸 설정의 PATH가 적용되지 않아 사용자 폴더에 설치한 uv·tesseract를 못 찾는다.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 # .env에 DATABASE_URL이 있으면 Supabase(DB + Storage, 영구 저장)를, 없으면 로컬 SQLite(data/companies.db)를 쓴다.
-# 앱 실행에 필요한 값만 내보낸다(관리용 토큰·API 키는 내보내지 않음).
+# 앱 실행에 필요한 값만 내보낸다(관리용 토큰·API 키는 내보내지 않음). APP_LOGIN_PASSWORD가 있으면 로그인 화면이 켜진다.
 if [ -f .env ]; then
-    for key in DATABASE_URL SUPABASE_URL SUPABASE_PUBLISHABLE_KEY STORAGE_BUCKET STORAGE_SERVICE_EMAIL STORAGE_SERVICE_PASSWORD; do
+    for key in DATABASE_URL SUPABASE_URL SUPABASE_PUBLISHABLE_KEY STORAGE_BUCKET STORAGE_SERVICE_EMAIL STORAGE_SERVICE_PASSWORD APP_LOGIN_PASSWORD APP_LOGIN_USER; do
         value="$(grep "^${key}=" .env | head -1 | cut -d= -f2-)"
         [ -n "$value" ] && export "${key}=${value}"
     done
@@ -20,7 +20,7 @@ PORT=8700
 URL="http://127.0.0.1:$PORT"
 
 if lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
-    if curl -sf "$URL/api/dashboard/summary" >/dev/null 2>&1; then
+    if curl -sf "$URL/api/session" >/dev/null 2>&1; then  # 로그인 없이 열리는 확인용 주소
         echo "Server is already running. Opening browser..."
         open "$URL"
         exit 0

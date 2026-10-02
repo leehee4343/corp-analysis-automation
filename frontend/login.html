@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기업분석 자동화 시스템 - 로그인</title>
+<style>
+/* 디자인 기준: DESIGN_GUIDE.md 6.6 로그인 (토큰은 index.html과 같은 값) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+:root{
+  --primary-blue:#1976d2; --bg-page:#f4f6fa; --bg-white:#ffffff; --border-light:#eaedf3; --border-card:#e2e8f0; --border-divider:#cbd5e1;
+  --text-title:#334155; --text-main:#475569; --text-muted:#58687b; --text-placeholder:#64748b; --text-danger:#dc2626;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  --control-height:38px; --control-radius:6px; --footer-height:38px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+[hidden]{display:none !important;}
+body{font-family:'Pretendard'; font-size:13px; line-height:1.5; color:var(--text-main); background:var(--bg-page);
+  min-height:100vh; display:flex; flex-direction:column; font-synthesis:none;}
+button, input{font-family:'Pretendard'; font-size:13px;}
+:focus-visible{outline:2px solid var(--primary-blue); outline-offset:2px;}
+.login-main{flex:1; display:flex; align-items:center; justify-content:center; padding:40px 16px;}
+.login-box{width:min(400px, 100%); display:flex; flex-direction:column; gap:20px;}
+.login-brand{display:flex; align-items:center; justify-content:center; gap:10px;}
+.login-brand img{width:26px; height:32px; object-fit:contain;}
+.login-brand span{font-size:20px; font-weight:800; letter-spacing:-.4px; color:var(--primary-blue);}
+.login-card{background:var(--bg-white); border:1px solid var(--border-card); border-radius:12px; box-shadow:var(--shadow-sm);
+  padding:28px 24px; display:flex; flex-direction:column; gap:16px;}
+.login-title{font-size:16px; font-weight:700; color:var(--text-title);}
+.form-group{display:flex; flex-direction:column; gap:6px;}
+.form-label{font-size:13px; color:var(--text-main);}
+.form-control{height:var(--control-height); padding:0 12px; border:1px solid var(--border-divider); border-radius:var(--control-radius);
+  background:var(--bg-white); color:var(--text-main); font-weight:400;}
+.form-control::placeholder{color:var(--text-placeholder); opacity:1;}
+.form-control:focus{border-color:var(--primary-blue); box-shadow:0 0 0 2px rgba(25,118,210,.15); outline:none;}
+.form-control:focus-visible{outline:2px solid var(--primary-blue); outline-offset:2px;}
+.form-control[aria-invalid="true"]{border-color:#ef4444;}
+.form-error{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-danger);}
+.form-error svg{width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round;}
+.btn-submit-login{height:44px; border:none; border-radius:var(--control-radius); color:#fff; font-size:14px; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg, #1976d2 0%, #10b981 100%); transition:background .15s;}
+.btn-submit-login:hover{background:linear-gradient(135deg, #1e88e5 0%, #22c55e 100%);}
+.btn-submit-login:disabled{opacity:.6; cursor:not-allowed;}
+.app-footer{height:var(--footer-height); flex:none; display:flex; align-items:center; justify-content:center; background:#334155;
+  color:#e2e8f0; font-size:13px; font-weight:400;}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important;} }
+</style>
+</head>
+<body>
+<main class="login-main">
+  <div class="login-box">
+    <div class="login-brand"><img src="/assets/company-symbol.png" alt="" width="26" height="32"><span>기업분석 자동화 시스템</span></div>
+    <form class="login-card" id="loginForm" novalidate>
+      <h1 class="login-title">로그인</h1>
+      <div class="form-group">
+        <label class="form-label" for="username">아이디</label>
+        <input class="form-control" id="username" name="username" autocomplete="username" value="admin" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">비밀번호</label>
+        <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required aria-describedby="loginError">
+      </div>
+      <p class="form-error" id="loginError" role="alert" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg><span></span>
+      </p>
+      <button type="submit" class="btn-submit-login" id="loginButton">로그인</button>
+    </form>
+  </div>
+</main>
+<footer class="app-footer"><div class="footer-copyright">&copy; 2026 기업분석 자동화 시스템. All Rights Reserved.</div></footer>
+<script>
+const form = document.getElementById('loginForm');
+const errorBox = document.getElementById('loginError');
+const pw = document.getElementById('password');
+pw.focus();
+function showError(message){
+  errorBox.hidden = false;
+  errorBox.querySelector('span').textContent = message;
+  pw.setAttribute('aria-invalid', 'true');
+  pw.select();
+}
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const button = document.getElementById('loginButton');
+  const body = {username: document.getElementById('username').value.trim(), password: pw.value};
+  if(!body.password) return showError('비밀번호를 입력해 주세요.');
+  button.disabled = true; button.textContent = '로그인 중…';
+  try{
+    const res = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if(!res.ok){
+      let detail = null;
+      try{ detail = (await res.json()).detail; }catch(err){ /* 본문 없음 */ }
+      throw new Error(typeof detail === 'string' ? detail : `로그인하지 못했습니다. (${res.status})`);
+    }
+    location.replace('/');
+  }catch(err){
+    showError(err.message);
+    button.disabled = false; button.textContent = '로그인';
+  }
+});
+</script>
+</body>
+</html>
