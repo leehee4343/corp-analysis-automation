@@ -181,7 +181,7 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
 
 _PG_UPSERT = """
     INSERT INTO companies (business_no, company_name, industry_name, credit_grade, status, parsed_at, data)
-    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+    VALUES (%s, %s, %s, %s, %s, %s, %s::json)
     ON CONFLICT (business_no) DO UPDATE SET
         company_name = excluded.company_name,
         industry_name = excluded.industry_name,

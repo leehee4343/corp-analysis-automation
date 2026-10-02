@@ -35,7 +35,7 @@ personal-projects
 │  ├─ platform
 │  │   └─ apps                 앱 레지스트리 (관리자 전용)
 │  └─ corp_analysis            기업분석 자동화 시스템  ← 계정 corp_analysis_app 만 접근
-│      ├─ companies            기업 분석 결과 (사업자번호당 1행, data jsonb)
+│      ├─ companies            기업 분석 결과 (사업자번호당 1행, data json — 표·계정 순서 보존을 위해 jsonb 아님)
 │      └─ source_pdfs          원본 PDF 메타데이터 (filename, size_bytes, storage_path)
 └─ Storage
    └─ corp-analysis  (비공개 · PDF만 · 파일당 20MB)  ← svc-corp-analysis 계정만 접근
