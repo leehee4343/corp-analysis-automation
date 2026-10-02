@@ -117,5 +117,6 @@ def dashboard_summary(project_id: int | None = None):
         pending_issues=sum(len(c.issues) for c in companies),
         by_industry=by_industry,
         by_credit_grade_band=by_grade_band,
+        by_credit_grade=storage.credit_grade_counts(companies),
         recent=[storage.to_list_item(c) for c in recent],
     )

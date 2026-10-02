@@ -626,6 +626,15 @@ def sort_companies(companies: list[Company], sort: str | None, order: str = "des
     return present + missing
 
 
+def credit_grade_counts(companies: list[Company]) -> dict[str, int]:
+    """실제 신용등급별 기업 수. 우량한 등급부터(aaa → d), 미평가는 맨 뒤."""
+    counts: dict[str, int] = {}
+    for c in companies:
+        key = c.credit_grade.lower() if c.credit_grade else "미평가"
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: _grade_rank(kv[0]) or (99, 0)))
+
+
 def grade_band(credit_grade: str | None) -> str:
     """대시보드 신용등급 분포용 구간 — 목업 도넛 범례(A~BBB/BB/B/CCC 이하)와 동일."""
     if not credit_grade:

@@ -240,3 +240,12 @@ def test_upload_real_pdf_end_to_end(client):
     assert client.get("/api/companies/412-93-13689").status_code == 200
     excel_res = client.get("/api/companies/412-93-13689/excel")
     assert excel_res.status_code == 200
+
+
+def test_dashboard_credit_grade_counts_in_rating_order(client):
+    storage.save_company(_sample_company())  # bb+
+    storage.save_company(_sample_company(business_no="303-81-54893", company_name="B사", credit_grade="a"))
+    storage.save_company(_sample_company(business_no="111-11-11111", company_name="C사", credit_grade=None))
+    storage.save_company(_sample_company(business_no="222-22-22222", company_name="D사", credit_grade="bb+"))
+    grades = client.get("/api/dashboard/summary").json()["by_credit_grade"]
+    assert list(grades.items()) == [("a", 1), ("bb+", 2), ("미평가", 1)]

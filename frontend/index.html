@@ -342,7 +342,7 @@ a.todo-card:visited{color:var(--text-main);}
 .fill-blue{background:#1976d2;} .fill-sky{background:#38bdf8;} .fill-cyan{background:#0284c7;} .fill-green{background:#00b894;}
 .fill-emerald{background:#10b981;} .fill-teal{background:#2dd4bf;} .fill-orange{background:#ff7a00;} .fill-amber{background:#f59e0b;}
 .fill-red{background:#ef4444;} .fill-gray{background:#cbd5e1;}
-.chart-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--text-muted);}
+.chart-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--text-muted); margin-bottom:12px;}
 .chart-legend span{display:inline-flex; align-items:center; gap:6px;}
 .legend-dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
 .donut-wrap{display:flex; align-items:center; gap:28px; flex-wrap:wrap; min-height:170px;}
@@ -492,7 +492,7 @@ body.modal-open{overflow:hidden;}
           <div id="industryChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
         <div class="app-card">
-          <div class="app-card-header"><h2 class="card-title">신용등급 분포</h2><span class="card-meta">단위: 개</span></div>
+          <div class="app-card-header"><h2 class="card-title">신용등급 분포</h2><span class="card-meta">우량 등급 순 · 단위: 개</span></div>
           <div id="gradeChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
       </div>
@@ -1280,7 +1280,7 @@ async function loadDashboard(){
     const s = await api(withProject('/api/dashboard/summary'));
     renderDashKpis(s);
     renderIndustryChart(s.by_industry);
-    renderGradeChart(s.by_credit_grade_band, s.total_companies);
+    renderGradeChart(s.by_credit_grade, s.total_companies);
     renderRecentTable(s.recent.slice(0, 5));
     setIssueCount(s.pending_issues);
   }catch(e){
@@ -1329,33 +1329,18 @@ function renderIndustryChart(byIndustry){
   if(rest) rows.push({label:'기타', value:rest, fill:'fill-gray', unit:'개'});
   el.innerHTML = barChartHtml(rows, '업종별 등록 기업 수');
 }
-function renderGradeChart(bands, total){
+// 신용등급 분포: 실제 등급(10단계 이상)을 우량 순 가로 막대로. 막대 색은 등급 구간(A~BBB/BB/B/CCC 이하).
+function renderGradeChart(grades, total){
   const el = document.getElementById('gradeChart');
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
-  const order = [
-    {key:'A~BBB', color:'#00b894', fill:'fill-green'}, {key:'BB', color:'#1976d2', fill:'fill-blue'}, {key:'B', color:'#ff7a00', fill:'fill-orange'},
-    {key:'CCC 이하', color:'#ef4444', fill:'fill-red'}, {key:'미평가', color:'#cbd5e1', fill:'fill-gray'},
-  ];
-  const r = 56, c = 2 * Math.PI * r;
-  let offset = 0;
-  const arcs = [], legend = [];
-  order.forEach(({key, color, fill}) => {
-    const n = (bands || {})[key] || 0;
-    if(!n) return;
-    const len = n / total * c;
-    arcs.push(`<circle cx="75" cy="75" r="${r}" fill="none" stroke="${color}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 75 75)"/>`);
-    offset += len;
-    legend.push(`<li><span class="legend-dot ${fill}"></span>${esc(key)} ${n.toLocaleString('ko-KR')}개 (${(n / total * 100).toFixed(0)}%)</li>`);
-  });
-  const described = order.filter(o => (bands || {})[o.key]).map(o => `${o.key} ${bands[o.key]}개`).join(', ');
-  el.innerHTML = `<div class="donut-wrap">
-    <svg class="donut-svg" viewBox="0 0 150 150" role="img" aria-label="${esc(`신용등급 분포: ${described}`)}">
-      <circle cx="75" cy="75" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="22"/>${arcs.join('')}
-      <text class="donut-center" x="75" y="78" text-anchor="middle">${total.toLocaleString('ko-KR')}</text>
-      <text class="donut-center-unit" x="75" y="98" text-anchor="middle">전체 기업</text>
-    </svg>
-    <ul class="donut-legend">${legend.join('')}</ul>
-  </div>`;
+  const bandFill = {'A~BBB':'fill-green', 'BB':'fill-blue', 'B':'fill-orange', 'CCC 이하':'fill-red'};
+  const rows = Object.entries(grades || {}).map(([g, n]) => ({
+    label: g === '미평가' ? '미평가' : g.toUpperCase(), value:n, unit:`개 (${(n / total * 100).toFixed(0)}%)`,
+    fill: g === '미평가' ? 'fill-gray' : (bandFill[gradeBand(g)] || 'fill-gray'),
+  }));
+  const legend = [['A~BBB', 'fill-green'], ['BB', 'fill-blue'], ['B', 'fill-orange'], ['CCC 이하', 'fill-red']]
+    .map(([k, f]) => `<span><i class="legend-dot ${f}"></i>${k}</span>`).join('');
+  el.innerHTML = barChartHtml(rows, `신용등급별 기업 수 (전체 ${total}개)`, legend);
 }
 function renderRecentTable(items){
   const tbody = document.getElementById('recentTableBody');

@@ -194,6 +194,7 @@ class DashboardSummary(BaseModel):
     pending_issues: int
     by_industry: dict[str, int]
     by_credit_grade_band: dict[str, int]
+    by_credit_grade: dict[str, int] = {}   # 실제 등급별(우량 순, 미평가는 맨 뒤)
     recent: list[CompanyListItem]
 
 
