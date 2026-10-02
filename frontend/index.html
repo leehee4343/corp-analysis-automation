@@ -338,6 +338,9 @@ a.todo-card:visited{color:var(--text-main);}
 .bar-label{font-size:13px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .bar-track{display:block; height:12px; background:#f1f5f9; border-radius:var(--radius-full); overflow:hidden;}
 .bar-fill{display:block; height:100%; border-radius:var(--radius-full); transition:width .6s ease;}
+.bar-row.is-link{cursor:pointer; border-radius:var(--radius-sm);}
+.bar-row.is-link:hover .bar-label{color:var(--primary-blue); text-decoration:underline;}
+.bar-row.is-link:hover .bar-fill{filter:brightness(1.08);}
 .bar-value{font-size:13px; color:var(--text-main); text-align:right; font-variant-numeric:tabular-nums;}
 .fill-blue{background:#1976d2;} .fill-sky{background:#38bdf8;} .fill-cyan{background:#0284c7;} .fill-green{background:#00b894;}
 .fill-emerald{background:#10b981;} .fill-teal{background:#2dd4bf;} .fill-orange{background:#ff7a00;} .fill-amber{background:#f59e0b;}
@@ -497,13 +500,9 @@ body.modal-open{overflow:hidden;}
         </div>
       </div>
       <div class="app-card">
-        <div class="app-card-header"><h2 class="card-title">최근 등록 기업</h2><a class="widget-more" href="#/companies">더보기 +</a></div>
-        <div class="table-scroll-wrapper">
-          <table class="data-table" aria-label="최근 등록 기업">
-            <thead><tr><th scope="col">기업명</th><th scope="col">사업자번호</th><th scope="col">업종</th><th scope="col">매출액(백만원)</th><th scope="col">신용등급</th><th scope="col">상태</th><th scope="col">등록일</th></tr></thead>
-            <tbody id="recentTableBody"><tr><td class="table-empty" colspan="7">불러오는 중…</td></tr></tbody>
-          </table>
-        </div>
+        <div class="app-card-header"><h2 class="card-title">매출액 구간별 기업 분포</h2>
+          <span class="card-meta">최근 결산연도 매출액 기준 · 막대를 누르면 해당 기업 목록 · <a class="widget-more" href="#/companies">더보기 +</a></span></div>
+        <div id="revenueChart"><div class="empty-text">불러오는 중…</div></div>
       </div>
     </section>
 
@@ -1281,11 +1280,11 @@ async function loadDashboard(){
     renderDashKpis(s);
     renderIndustryChart(s.by_industry);
     renderGradeChart(s.by_credit_grade, s.total_companies);
-    renderRecentTable(s.recent.slice(0, 5));
+    renderRevenueChart(s.by_revenue_band || [], s.total_companies);
     setIssueCount(s.pending_issues);
   }catch(e){
     document.getElementById('dashKpis').innerHTML = '';
-    document.getElementById('recentTableBody').innerHTML = `<tr><td class="table-empty" colspan="7">불러오지 못했습니다. ${esc(e.message)}</td></tr>`;
+    document.getElementById('revenueChart').innerHTML = `<div class="empty-text">불러오지 못했습니다. ${esc(e.message)}</div>`;
     showToast('danger', `대시보드를 불러오지 못했습니다. ${e.message}`);
   }
 }
@@ -1341,6 +1340,34 @@ function renderGradeChart(grades, total){
   const legend = [['A~BBB', 'fill-green'], ['BB', 'fill-blue'], ['B', 'fill-orange'], ['CCC 이하', 'fill-red']]
     .map(([k, f]) => `<span><i class="legend-dot ${f}"></i>${k}</span>`).join('');
   el.innerHTML = barChartHtml(rows, `신용등급별 기업 수 (전체 ${total}개)`, legend);
+}
+// 매출액 구간별 기업 수 막대. 막대(행)를 누르면 그 매출 구간으로 검색된 기업 목록으로 이동.
+function renderRevenueChart(bands, total){
+  const el = document.getElementById('revenueChart');
+  if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
+  const rows = bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => ({
+    label:b.label, value:b.count, unit:`개 (${(b.count / total * 100).toFixed(0)}%)`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
+  }));
+  el.innerHTML = barChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`);
+  el.querySelectorAll('.bar-row').forEach((row, i) => {
+    const band = bands.filter(b => b.count || b.label !== '매출 정보 없음')[i];
+    if(!band || band.label === '매출 정보 없음' || !band.count) return;
+    row.classList.add('is-link');
+    row.tabIndex = 0;
+    row.setAttribute('role', 'link');
+    row.setAttribute('aria-label', `매출액 ${band.label} 기업 ${band.count}개 목록 보기`);
+    const go = () => {
+      const screen = LIST_SCREENS.companies;
+      Object.assign(screen.state, {q:'', industry:'', grade:'', ...EMPTY_RANGES(), page:1,
+        revenue_from: band.min ?? '', revenue_to: band.max != null ? String(band.max - 0.01) : ''});
+      screen.form.reset();
+      screen.form.elements.revenue_from.value = band.min ?? '';
+      screen.form.elements.revenue_to.value = band.max != null ? band.max - 0.01 : '';
+      location.hash = '#/companies';
+    };
+    row.addEventListener('click', go);
+    row.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  });
 }
 function renderRecentTable(items){
   const tbody = document.getElementById('recentTableBody');

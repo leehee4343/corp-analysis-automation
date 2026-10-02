@@ -118,5 +118,6 @@ def dashboard_summary(project_id: int | None = None):
         by_industry=by_industry,
         by_credit_grade_band=by_grade_band,
         by_credit_grade=storage.credit_grade_counts(companies),
+        by_revenue_band=storage.revenue_band_counts(companies),
         recent=[storage.to_list_item(c) for c in recent],
     )

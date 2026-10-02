@@ -626,6 +626,30 @@ def sort_companies(companies: list[Company], sort: str | None, order: str = "des
     return present + missing
 
 
+# 매출액 구간(백만원, 최근 결산연도). (이름, 이상, 미만) — 상한 None은 끝없음
+REVENUE_BANDS = [
+    ("10억 미만", None, 1000), ("10~30억", 1000, 3000), ("30~50억", 3000, 5000),
+    ("50~100억", 5000, 10000), ("100~300억", 10000, 30000), ("300억 이상", 30000, None),
+]
+
+
+def revenue_band_counts(companies: list[Company]) -> list[dict]:
+    """매출액 구간별 기업 수. 매출 정보가 없는 기업은 마지막 '매출 정보 없음'."""
+    out = [{"label": name, "min": lo, "max": hi, "count": 0} for name, lo, hi in REVENUE_BANDS]
+    missing = 0
+    for c in companies:
+        rev = latest_revenue(c)
+        if rev is None:
+            missing += 1
+            continue
+        for band in out:
+            if (band["min"] is None or rev >= band["min"]) and (band["max"] is None or rev < band["max"]):
+                band["count"] += 1
+                break
+    out.append({"label": "매출 정보 없음", "min": None, "max": None, "count": missing})
+    return out
+
+
 def credit_grade_counts(companies: list[Company]) -> dict[str, int]:
     """실제 신용등급별 기업 수. 우량한 등급부터(aaa → d), 미평가는 맨 뒤."""
     counts: dict[str, int] = {}

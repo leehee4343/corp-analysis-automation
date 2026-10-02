@@ -249,3 +249,11 @@ def test_dashboard_credit_grade_counts_in_rating_order(client):
     storage.save_company(_sample_company(business_no="222-22-22222", company_name="D사", credit_grade="bb+"))
     grades = client.get("/api/dashboard/summary").json()["by_credit_grade"]
     assert list(grades.items()) == [("a", 1), ("bb+", 2), ("미평가", 1)]
+
+
+def test_dashboard_revenue_bands(client):
+    storage.save_company(_sample_company())  # 매출 8,307 → 50~100억
+    storage.save_company(_sample_company(business_no="303-81-54893", company_name="B사", income_summary={"매출액": {"2025": 500}}))
+    storage.save_company(_sample_company(business_no="111-11-11111", company_name="C사", income_summary={}))
+    bands = {b["label"]: b["count"] for b in client.get("/api/dashboard/summary").json()["by_revenue_band"]}
+    assert bands["50~100억"] == 1 and bands["10억 미만"] == 1 and bands["매출 정보 없음"] == 1 and sum(bands.values()) == 3
