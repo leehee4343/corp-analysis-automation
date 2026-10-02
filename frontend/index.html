@@ -134,12 +134,6 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 .subsection-title{font-size:15px; font-weight:700; color:var(--text-title); line-height:1.4;}
 .card-grid{display:grid; gap:var(--content-object-gap);}
 .card-grid.cols-2{grid-template-columns:repeat(2, minmax(0, 1fr));}
-.card-grid.cols-3{grid-template-columns:repeat(3, minmax(0, 1fr));}
-/* 대시보드 차트 3개를 한 줄에 같은 높이로: 카드는 가장 긴 차트에 맞춰 늘어나고, 막대들은 카드 높이에 고르게 펼쳐진다 */
-.dash-charts > .app-card{display:flex; flex-direction:column;}
-.dash-charts > .app-card > [id$="Chart"]{flex:1; display:flex; flex-direction:column;}
-.dash-charts .bar-chart{flex:1; justify-content:space-between;}
-.dash-charts .bar-row{grid-template-columns:minmax(64px, 34%) minmax(0,1fr) 92px;}
 .card-body-text{font-size:13px; line-height:1.7; color:var(--text-main); white-space:pre-wrap; word-break:keep-all;}
 
 /* ===== 검색 필터 (5.2) ===== */
@@ -345,13 +339,13 @@ a.todo-card:visited{color:var(--text-main);}
 .bar-track{display:block; height:12px; background:#f1f5f9; border-radius:var(--radius-full); overflow:hidden;}
 .bar-fill{display:block; height:100%; border-radius:var(--radius-full); transition:width .6s ease;}
 /* 세로 막대 차트 (매출액 구간): 카드 높이를 채우고 막대는 아래에서 위로 */
-.col-chart{flex:1; display:flex; align-items:stretch; gap:6px; min-height:220px; padding-top:4px;}
+.col-chart{display:flex; align-items:stretch; gap:16px; height:260px; padding-top:4px;}
 .col-item{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:6px; border-radius:var(--radius-sm);}
 .col-value{font-size:14px; font-weight:700; color:var(--text-title); display:flex; flex-direction:column; align-items:center; line-height:1.3;}
 .col-value small{font-size:12px; font-weight:400; color:var(--text-muted);}
-.col-track{flex:1; width:100%; max-width:44px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border-color, #e2e8f0);}
+.col-track{flex:1; width:100%; max-width:72px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border-color, #e2e8f0);}
 .col-fill{display:block; width:100%; min-height:2px; border-radius:6px 6px 0 0;}
-.col-label{font-size:12px; letter-spacing:-0.3px; line-height:1.3; height:2.6em; text-align:center; word-break:keep-all; color:var(--text-body, #475569); max-width:100%;}
+.col-label{font-size:13px; line-height:1.3; min-height:1.3em; text-align:center; word-break:keep-all; color:var(--text-body, #475569); max-width:100%;}
 .col-item.is-link{cursor:pointer;}
 .col-item.is-link:hover .col-label{color:var(--primary-blue); text-decoration:underline;}
 .col-item.is-link:hover .col-fill{filter:brightness(1.08);}
@@ -440,7 +434,6 @@ body.modal-open{overflow:hidden;}
 
 /* ===== 반응형 (4.6) ===== */
 @media (max-width:1440px){ .bar-row{grid-template-columns:120px minmax(0,1fr) 84px;} }
-@media (max-width:1280px){ .card-grid.cols-3{grid-template-columns:minmax(0,1fr);} }
 @media (max-width:1100px){
   .card-grid.cols-2, .search-filter-grid{grid-template-columns:minmax(0,1fr);}
   .todo-grid.cols-4{grid-template-columns:repeat(2, minmax(0,1fr));}
@@ -507,7 +500,7 @@ body.modal-open{overflow:hidden;}
     <section class="view" data-view="dashboard" hidden>
       <div id="dashProjectInfo"></div>
       <div class="todo-grid cols-4" id="dashKpis"></div>
-      <div class="card-grid cols-3 dash-charts">
+      <div class="card-grid dash-charts">
         <div class="app-card">
           <div class="app-card-header"><h2 class="card-title">업종별 등록 현황</h2><span class="card-meta">상위 6개 업종 (단위: 개)</span></div>
           <div id="industryChart"><div class="empty-text">불러오는 중…</div></div>
@@ -517,7 +510,7 @@ body.modal-open{overflow:hidden;}
           <div id="gradeChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
         <div class="app-card">
-          <div class="app-card-header"><h2 class="card-title">매출액 구간별 분포</h2><span class="card-meta">최근 결산연도 · 막대 클릭 시 목록</span></div>
+          <div class="app-card-header"><h2 class="card-title">매출액 구간별 분포</h2><span class="card-meta">최근 결산연도 매출액 기준 · 막대를 누르면 해당 기업 목록</span></div>
           <div id="revenueChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
       </div>
