@@ -453,3 +453,4 @@
 - 2026-10-02 (Claude): **영업 관리 메뉴 신설(맨 아래).** 사용자 요청 — 기업별 우편(DM) 발송 여부와 승인/거절을 체크하고 현황을 보는 목록. 기업이 프로젝트 단위로 등록되므로 **프로젝트 참여 기업별**로 관리(같은 기업도 지원사업마다 따로). DB `corp_analysis.sales_activities`(project_id, business_no, dm_sent, dm_sent_at, decision 승인/거절, decided_at, updated_at; project_companies FK cascade, corp_analysis_app 권한) — Supabase에 생성, SQLite도 같은 구조. API `GET /api/sales?project_id`, `PATCH /api/sales/{project_id}/{business_no}`(보낸 항목만, 발송일·처리일 자동 기록, decision null = 미정), `POST /api/sales/bulk`. 화면: 요약 카드 5개(대상 기업·DM 발송·승인·거절·미정, 아이콘, 누르면 그 조건으로 필터) → 검색(기업명·사업자번호·대표자, DM 발송, 결과) → 목록(선택·No·기업명·사업자번호·대표자·DM 발송 체크·발송일·결과 선택·처리일·신용등급·우편번호·주소·프로젝트, 선택 일괄 DM 발송/승인/거절 처리, 엑셀 다운로드, 100건·한번에 보기). 테스트 4개 추가(125개 통과).
 - 2026-10-02 (Claude): 영업 관리 목록·엑셀에서 우편번호·주소 열 제거(사용자 요청).
 - 2026-10-02 (Claude): 영업 관리 목록·엑셀에서 신용등급 열 제거(사용자 요청).
+- 2026-10-02 (Claude): 영업 관리 목록·엑셀에서 프로젝트 열 제거(사용자 요청). 어느 프로젝트 기준인지는 헤더의 현재 프로젝트와 엑셀 부제로 확인.

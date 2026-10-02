@@ -1462,7 +1462,6 @@ function initSales(){
       {key:'decision', label:'결과', render:r => `<select class="filter-select decision-select${r.decision === '승인' ? ' is-approved' : r.decision === '거절' ? ' is-rejected' : ''}" data-sales-decision="${esc(salesKey(r))}" aria-label="${esc(r.company_name)} 승인/거절">
         ${[['', '미정'], ['승인', '승인'], ['거절', '거절']].map(([v, l]) => `<option value="${v}" ${(r.decision || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`},
       {key:'decided_at', label:'처리일', render:r => r.decided_at ? fmtDate(r.decided_at) : '-'},
-      {key:'project_name', label:'프로젝트', render:r => esc(r.project_name)},
     ],
   });
   salesGrid.attachColumnMenu(document.getElementById('salesColumns'));
@@ -1568,9 +1567,9 @@ function renderSales(){
   const project = currentProject();
   CHART_EXPORTS.set('sales', {
     title: project ? `${project.name} 영업 관리` : '영업 관리', subtitle: `${project ? `프로젝트: ${project.name}` : '전체 프로젝트'} · ${items.length}개`,
-    columns:['No', '기업명', '사업자번호', '대표자', 'DM 발송', '발송일', '결과', '처리일', '프로젝트'],
+    columns:['No', '기업명', '사업자번호', '대표자', 'DM 발송', '발송일', '결과', '처리일'],
     rows: items.map((r, i) => [i + 1, r.company_name, r.business_no, r.representative, r.dm_sent ? '발송' : '미발송', r.dm_sent_at,
-      r.decision || '미정', r.decided_at, r.project_name]),
+      r.decision || '미정', r.decided_at]),
   });
 }
 function syncSalesSelection(){
