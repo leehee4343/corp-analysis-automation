@@ -87,11 +87,11 @@ body.sidebar-collapsed .sidebar-nav{padding:16px 8px;}
 body.sidebar-collapsed .nav-link{justify-content:center; padding:0;}
 body.sidebar-collapsed .nav-text{display:none;}
 
-/* 현재 프로젝트 선택 (사이드바 상단) */
-.project-switch{display:flex; flex-direction:column; gap:6px; padding:2px 2px 14px; margin-bottom:10px; border-bottom:1px solid var(--border-light);}
-.project-switch-label{font-size:13px; color:var(--text-muted);}
-.project-switch .filter-select{width:100%;}
-body.sidebar-collapsed .project-switch{display:none;}
+/* 현재 프로젝트 선택 (헤더 오른쪽, 4.1 우측 영역 — 사용자 요청) */
+.header-right{margin-left:auto; height:100%; display:flex; align-items:center; gap:16px; padding:0 var(--content-edge-gap) 0 16px;}
+.project-switch{display:flex; align-items:center; gap:8px;}
+.project-switch-label{font-size:13px; color:var(--text-muted); white-space:nowrap;}
+.project-switch .filter-select{width:320px; max-width:32vw;}
 .btn-row-del{height:28px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid #475569; background:#475569; color:#fff; font-size:13px; font-weight:400; cursor:pointer;}
 .btn-row-del:hover{background:#334155; border-color:#334155;}
 :is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download) + .btn-row-del{margin-left:8px;}
@@ -475,15 +475,17 @@ body.modal-open{overflow:hidden;}
   <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="메뉴 접기" aria-expanded="true" aria-controls="sidebar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
   </button>
+  <div class="header-right">
+    <div class="project-switch">
+      <label class="project-switch-label" for="projectSelect">현재 프로젝트 :</label>
+      <select class="filter-select" id="projectSelect"><option value="">전체 프로젝트</option></select>
+    </div>
+  </div>
 </header>
 
 <div class="app-container">
   <aside class="sidebar" id="sidebar">
     <nav class="sidebar-nav" aria-label="주 메뉴">
-      <div class="project-switch">
-        <label class="project-switch-label" for="projectSelect">현재 프로젝트</label>
-        <select class="filter-select" id="projectSelect"><option value="">전체 프로젝트</option></select>
-      </div>
       <ul id="navList"></ul>
     </nav>
   </aside>
