@@ -27,6 +27,7 @@ def list_category(
     revenue_min: float | None = None,
     revenue_max: float | None = None,
     ranges: MetricRanges = Depends(),
+    project_id: int | None = None,
     sort: str | None = None,
     order: Literal["asc", "desc"] = "desc",
     page: int = 1,
@@ -34,7 +35,7 @@ def list_category(
 ):
     meta = _require_category(category)
 
-    companies = [c for c in storage.list_companies() if category_list.classify(c) == category]
+    companies = [c for c in storage.list_companies(project_id) if category_list.classify(c) == category]
     companies = storage.filter_companies(
         companies,
         q=q, industry=industry, grade_band_filter=grade_band,

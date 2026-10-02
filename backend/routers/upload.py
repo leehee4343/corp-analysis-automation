@@ -15,9 +15,12 @@ router = APIRouter(prefix="/api", tags=["upload"])
 
 
 @router.post("/upload", response_model=Company)
-async def upload_pdf(file: UploadFile):
+async def upload_pdf(file: UploadFile, project_id: int | None = None):
+    """PDF 분석·저장 후 project_id 프로젝트의 참여 기업으로 등록한다(화면은 항상 프로젝트를 지정)."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="PDF 파일만 업로드할 수 있습니다.")
+    if project_id is not None and storage.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="존재하지 않는 프로젝트입니다.")
 
     try:
         UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,6 +46,8 @@ async def upload_pdf(file: UploadFile):
         company = storage.build_company(parsed, grades)
         storage.save_company(company)
         storage.save_source_pdf(company.business_no, dest.name, content)
+        if project_id is not None:
+            storage.add_companies_to_project(project_id, [company.business_no])
         generate_excel(company)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"데이터 저장/엑셀 생성 중 오류가 발생했습니다: {e}") from e

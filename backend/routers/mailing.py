@@ -10,13 +10,13 @@ from ..models import Company, MailingList, MailingListEntry
 router = APIRouter(prefix="/api", tags=["mailing"])
 
 
-def _sorted_companies() -> list[Company]:
+def _sorted_companies(project_id: int | None = None) -> list[Company]:
     # 우편번호순 정렬 — 우체국 대량발송 접수 시 통상 요구되는 순서.
-    return sorted(storage.list_companies(), key=lambda c: (c.postal_code or "99999", c.company_name))
+    return sorted(storage.list_companies(project_id), key=lambda c: (c.postal_code or "99999", c.company_name))
 
 
 @router.get("/mailing-list", response_model=MailingList)
-def mailing_list(page: int = 1, page_size: int = 10):
+def mailing_list(page: int = 1, page_size: int = 10, project_id: int | None = None):
     entries = [
         MailingListEntry(
             no=i,
@@ -26,7 +26,7 @@ def mailing_list(page: int = 1, page_size: int = 10):
             company_name=c.company_name,
             representative=c.representative,
         )
-        for i, c in enumerate(_sorted_companies(), start=1)
+        for i, c in enumerate(_sorted_companies(project_id), start=1)
     ]
     total = len(entries)
     start = max(page - 1, 0) * page_size
@@ -34,8 +34,8 @@ def mailing_list(page: int = 1, page_size: int = 10):
 
 
 @router.get("/mailing-list/excel")
-def mailing_list_excel():
-    path = generate_mailing_list_excel(_sorted_companies())
+def mailing_list_excel(project_id: int | None = None):
+    path = generate_mailing_list_excel(_sorted_companies(project_id))
     return FileResponse(
         path,
         filename=path.name,

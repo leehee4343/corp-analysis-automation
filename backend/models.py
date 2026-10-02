@@ -193,3 +193,38 @@ class DashboardSummary(BaseModel):
     by_industry: dict[str, int]
     by_credit_grade_band: dict[str, int]
     recent: list[CompanyListItem]
+
+
+ProjectStatus = Literal["준비", "진행중", "종료"]
+
+
+class ProjectInput(BaseModel):
+    """프로젝트 등록/수정 입력. 날짜는 YYYY-MM-DD."""
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+    region: str | None = Field(default=None, max_length=100)
+    start_date: str | None = None
+    end_date: str | None = None
+    status: ProjectStatus | None = None
+
+
+class Project(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    region: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    status: str
+    created_at: str
+    company_count: int = 0
+
+
+class ProjectCompaniesInput(BaseModel):
+    business_nos: list[str]
+
+
+class ProjectRef(BaseModel):
+    id: int
+    name: str
+    status: str

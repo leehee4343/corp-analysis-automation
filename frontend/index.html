@@ -95,6 +95,21 @@ body.sidebar-collapsed .nav-link{justify-content:center; padding:0;}
 body.sidebar-collapsed :is(.nav-text, .nav-arrow){display:none;}
 body.sidebar-collapsed .nav-item > .submenu{display:none;}
 
+/* 현재 프로젝트 선택 (사이드바 상단) */
+.project-switch{display:flex; flex-direction:column; gap:6px; padding:2px 2px 14px; margin-bottom:10px; border-bottom:1px solid var(--border-light);}
+.project-switch-label{font-size:13px; color:var(--text-muted);}
+.project-switch .filter-select{width:100%;}
+body.sidebar-collapsed .project-switch{display:none;}
+.btn-row-del{height:28px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid #475569; background:#475569; color:#fff; font-size:13px; font-weight:400; cursor:pointer;}
+.btn-row-del:hover{background:#334155; border-color:#334155;}
+:is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download) + .btn-row-del{margin-left:8px;}
+.form-section{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px 20px;}
+.form-section .col-full{grid-column:1 / -1;}
+.form-date-range{display:flex; align-items:center; gap:8px;}
+.form-date-range .form-control{flex:1;}
+textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:vertical; line-height:1.6;}
+.chip-list{display:flex; flex-wrap:wrap; gap:6px;}
+
 /* ===== 본문 (4.0) ===== */
 .main-content{flex:1; min-width:0; padding:22px var(--content-edge-gap) 40px; display:flex; flex-direction:column; gap:var(--content-object-gap);}
 .view{display:flex; flex-direction:column; gap:var(--content-object-gap);}
@@ -148,6 +163,7 @@ body.sidebar-collapsed .nav-item > .submenu{display:none;}
   transition:border-color var(--transition-fast), box-shadow var(--transition-fast);}
 .filter-input{flex:1; max-width:360px;}
 .filter-select{width:200px;}
+.filter-select.w-wide{width:420px; max-width:100%;}
 select.form-control, .filter-select, .select-per-page{appearance:none; padding-right:38px; cursor:pointer;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2358687b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 14px center; background-size:16px;}
@@ -352,6 +368,7 @@ a.todo-card:visited{color:var(--text-main);}
   align-items:center; gap:10px; text-align:center; background:var(--bg-white); cursor:pointer;
   transition:border-color var(--transition-fast), background var(--transition-fast);}
 .file-dropzone:hover, .file-dropzone.dragover{border-color:var(--primary-blue); background:#f3f8fe;}
+.file-dropzone.is-disabled{opacity:.5; cursor:not-allowed;}
 .file-dropzone .dz-icon{width:40px; height:40px; color:var(--primary-blue);}
 .file-dropzone .dz-title{font-size:14px; color:var(--text-main);}
 .file-dropzone .dz-hint{font-size:13px; color:var(--text-muted);}
@@ -451,7 +468,13 @@ body.modal-open{overflow:hidden;}
 
 <div class="app-container">
   <aside class="sidebar" id="sidebar">
-    <nav class="sidebar-nav" aria-label="주 메뉴"><ul id="navList"></ul></nav>
+    <nav class="sidebar-nav" aria-label="주 메뉴">
+      <div class="project-switch">
+        <label class="project-switch-label" for="projectSelect">현재 프로젝트</label>
+        <select class="filter-select" id="projectSelect"><option value="">전체 프로젝트</option></select>
+      </div>
+      <ul id="navList"></ul>
+    </nav>
   </aside>
 
   <main class="main-content" id="mainContent">
@@ -474,6 +497,7 @@ body.modal-open{overflow:hidden;}
 
     <!-- 대시보드 -->
     <section class="view" data-view="dashboard" hidden>
+      <div id="dashProjectInfo"></div>
       <div class="todo-grid cols-4" id="dashKpis"></div>
       <div class="card-grid cols-2">
         <div class="app-card">
@@ -498,6 +522,18 @@ body.modal-open{overflow:hidden;}
 
     <!-- 기업 목록 · 영업 대상 분류 화면은 스크립트가 같은 구조로 생성한다 (listScreenTemplate) -->
 
+    <!-- 프로젝트 목록 -->
+    <section class="view" data-view="projects" hidden>
+      <div class="table-card">
+        <div class="table-header-action-row">
+          <div class="grid-page-summary" id="projectSummary">총 0개</div>
+          <div class="table-actions"><button type="button" class="btn-secondary" id="projectColumns">열 설정</button></div>
+        </div>
+        <div class="table-scroll-wrapper data-grid" id="projectGrid"></div>
+        <div class="table-bottom-actions"><button type="button" class="btn-critical-primary" id="btnProjectCreate">프로젝트 등록</button></div>
+      </div>
+    </section>
+
     <!-- 우편발송용 목록 -->
     <section class="view" data-view="mailing" hidden>
       <div class="table-card">
@@ -520,11 +556,12 @@ body.modal-open{overflow:hidden;}
       <div class="notice-box info" role="note">
         <span class="notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3Z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M19 6a8 8 0 0 1 0 12"/></svg></span>
         <div class="notice-body">
-          <p class="notice-lead">CRETOP · KODATA 기업종합보고서 PDF를 등록해 주세요.</p>
-          <p>여러 파일을 한 번에 올릴 수 있으며, 파일마다 파싱 → DB 저장 → 엑셀 보고서 생성이 순서대로 진행됩니다.</p>
+          <p class="notice-lead">CRETOP · KODATA 기업종합보고서 PDF를 프로젝트 단위로 등록해 주세요.</p>
+          <p>여러 파일을 한 번에 올릴 수 있으며, 파일마다 파싱 → DB 저장 → 엑셀 보고서 생성 → 프로젝트 참여 기업 등록이 순서대로 진행됩니다.</p>
           <p class="notice-note">신용등급·EW등급은 Tesseract-OCR이 설치된 경우에만 자동 인식되며, 인식하지 못한 값은 데이터 검증 화면에 모입니다.</p>
         </div>
       </div>
+      <div class="app-card" id="uploadTargetCard"></div>
       <div class="app-card">
         <div class="app-card-header"><h2 class="card-title">파일 등록</h2></div>
         <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple hidden>
@@ -583,6 +620,16 @@ body.modal-open{overflow:hidden;}
    공통 유틸
    ============================================================ */
 const SYSTEM_NAME = '기업분석 자동화 시스템';
+
+/* 현재 프로젝트: 모든 목록·대시보드·업로드가 이 프로젝트 기준 (PLAN.md Phase 9) */
+let projects = [];
+let currentProjectId = Number(storageGetSafe('currentProject')) || null;
+function storageGetSafe(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
+function currentProject(){ return projects.find(p => p.id === currentProjectId) || null; }
+function withProject(path){
+  if(!currentProjectId) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}project_id=${currentProjectId}`;
+}
 
 function esc(s){
   if(s === null || s === undefined) return '';
@@ -1067,12 +1114,14 @@ const CATEGORIES = {
   farm_partnership: '영농조합법인',
 };
 const NAV_ICONS = {
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/></svg>',
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M3 21h18"/><path d="M8 7h4"/><path d="M8 11h4"/><path d="M8 15h4"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
 };
 const MENU = [
+  {key:'project', label:'프로젝트 관리', icon:'folder', tone:'blue', items:[{route:'projects', label:'프로젝트 목록'}]},
   {key:'dashboard', label:'대시보드', icon:'dashboard', tone:'blue', items:[{route:'dashboard', label:'대시보드'}]},
   {key:'company', label:'기업 관리', icon:'building', tone:'info', items:[
     {route:'companies', label:'기업 목록'}, {route:'upload', label:'PDF 업로드'}, {route:'mailing', label:'우편발송용 목록'},
@@ -1149,6 +1198,7 @@ function detailHref(businessNo, from){
 function resolveRoute(){
   const {parts, params} = parseHash();
   const [head, arg] = parts;
+  if(head === 'projects') return {view:'projects', menu:'projects', title:'프로젝트 목록'};
   if(head === 'companies') return {view:'list:companies', menu:'companies', title:'기업 목록'};
   if(head === 'upload') return {view:'upload', menu:'upload', title:'PDF 업로드'};
   if(head === 'mailing') return {view:'mailing', menu:'mailing', title:'우편발송용 목록'};
@@ -1190,6 +1240,8 @@ function handleRoute(){
   else if(route.view.startsWith('list:')) loadListScreen(LIST_SCREENS[route.view.slice(5)]);
   else if(route.view === 'mailing') loadMailing();
   else if(route.view === 'issues') loadIssues();
+  else if(route.view === 'projects') loadProjectsView();
+  else if(route.view === 'upload') renderUploadTarget();
   else if(route.view === 'detail') loadDetail(route.businessNo, route.menu);
 }
 
@@ -1197,6 +1249,9 @@ function handleRoute(){
    화면 매뉴얼 (?) · 인쇄 · PDF (4.3)
    ============================================================ */
 const MANUALS = {
+  projects: ['기업 PDF는 프로젝트(지원사업 등) 단위로 등록합니다. 프로젝트 등록 버튼으로 새 프로젝트를 만들어 주세요.',
+    '선택 버튼(또는 프로젝트명)을 누르면 그 프로젝트가 현재 프로젝트가 되고, 대시보드·기업 목록·우편발송·데이터 검증이 모두 그 프로젝트 기준으로 바뀝니다.',
+    '프로젝트를 삭제해도 기업 분석 정보와 원본 PDF는 남습니다. 같은 기업이 여러 프로젝트에 참여할 수 있습니다.'],
   dashboard: ['PDF 업로드 → 라벨 기반 파싱(LLM 미사용) → DB 저장 → 엑셀 보고서 생성 → 대시보드 반영 순서로 자동 처리됩니다.',
     '상단 요약 카드를 누르면 해당 화면으로 이동합니다.', '파싱 성공률은 검증 대기 이슈가 없는 기업의 비율입니다.'],
   list: ['검색어·업종·신용등급·매출액 조건을 고른 뒤 검색 버튼을 눌러 주세요. 검색어 입력 후 Enter로도 검색할 수 있습니다.',
@@ -1205,7 +1260,8 @@ const MANUALS = {
   category: ['PDF로 분석된 기업을 법인형태별로 분류한 목록입니다. 개인사업자는 기업유형, 농업회사법인·영농조합법인은 기업명으로 분류하고 나머지는 일반법인입니다.',
     '검색·정렬·엑셀 다운로드는 기업 목록과 같습니다.'],
   mailing: ['등록된 기업의 우편번호·주소·상호명·대표자를 우편번호순으로 보여 줍니다.', '엑셀 다운로드는 페이지와 관계없이 전체 목록을 우편 발송 양식으로 내려받습니다.'],
-  upload: ['CRETOP · KODATA 기업종합보고서 PDF만 등록할 수 있습니다.', '같은 사업자번호로 다시 등록하면 최신 내용으로 교체되고, 조회일시가 다르면 중복 의심 이슈가 생깁니다.',
+  upload: ['기업 PDF는 프로젝트 단위로 등록합니다. 등록 대상 프로젝트를 고른 뒤 PDF를 올려 주세요.',
+    'CRETOP · KODATA 기업종합보고서 PDF만 등록할 수 있습니다.', '같은 사업자번호로 다시 등록하면 최신 내용으로 교체되고, 조회일시가 다르면 중복 의심 이슈가 생깁니다.',
     '처리 중 오류가 난 파일은 처리 결과에 사유가 표시됩니다.'],
   detail: ['기업종합보고서에서 추출한 전체 정보를 보여 줍니다. 재무제표·재무비율 상세는 항목을 눌러 펼쳐 주세요.',
     '엑셀 다운로드는 최신 데이터로 보고서를 다시 만들어 내려받습니다.', '삭제한 기업은 원본 PDF를 다시 업로드하면 복구됩니다.'],
@@ -1261,7 +1317,7 @@ function initPageTools(){
 let industryCache = null;
 async function getIndustries(){
   if(!industryCache){
-    const summary = await api('/api/dashboard/summary');
+    const summary = await api(withProject('/api/dashboard/summary'));
     industryCache = Object.keys(summary.by_industry).sort((a, b) => a.localeCompare(b, 'ko'));
   }
   return industryCache;
@@ -1269,7 +1325,7 @@ async function getIndustries(){
 function invalidateCaches(){ industryCache = null; LIST_SCREENS_LOADED.clear(); }
 async function refreshIssueCount(){
   try{
-    const data = await api('/api/issues?page=1&page_size=1');
+    const data = await api(withProject('/api/issues?page=1&page_size=1'));
     setIssueCount(data.total);
   }catch(e){ /* 배지만 갱신하지 못함 */ }
 }
@@ -1286,7 +1342,8 @@ function setIssueCount(count){
    ============================================================ */
 async function loadDashboard(){
   try{
-    const s = await api('/api/dashboard/summary');
+    renderDashProjectInfo();
+    const s = await api(withProject('/api/dashboard/summary'));
     renderDashKpis(s);
     renderIndustryChart(s.by_industry);
     renderGradeChart(s.by_credit_grade_band, s.total_companies);
@@ -1407,7 +1464,8 @@ function companyColumns(from){
     {key:'credit_grade', label:'신용등급', sortKey:'credit_grade', render:c => gradeBadge(c.credit_grade)},
     {key:'status', label:'상태', sortKey:'status', render:c => statusBadge(c.status)},
     {key:'parsed_at', label:'등록일', sortKey:'parsed_at', defaultOrder:'desc', render:c => fmtDate(c.parsed_at)},
-    {key:'actions', label:'보고서', render:c =>
+    {key:'actions', label:'관리', render:c => (currentProjectId && from === 'companies'
+        ? `<button type="button" class="btn-task-done" data-remove-member="${esc(c.business_no)}" data-name="${esc(c.company_name)}">프로젝트에서 제외</button>` : '') +
       `<a class="btn-file-download" href="/api/companies/${encodeURIComponent(c.business_no)}/excel" download aria-label="${esc(c.company_name)} 엑셀 다운로드">${ICONS.excel}엑셀 다운로드</a>`},
   ];
 }
@@ -1445,7 +1503,7 @@ function listScreenTemplate(key){
       </div>
       <div class="table-scroll-wrapper data-grid" data-role="grid"></div>
       <div class="table-pagination-row"><nav class="pagination-controls" data-role="pagination" aria-label="표 페이지 이동"></nav></div>
-      <div class="table-bottom-actions"><a class="btn-critical-primary" href="#/upload">PDF 업로드</a></div>
+      <div class="table-bottom-actions">${key === 'companies' ? '<button type="button" class="btn-primary" data-action="add-existing" hidden>기존 기업 추가</button>' : ''}<a class="btn-critical-primary" href="#/upload">PDF 업로드</a></div>
     </div>`;
 }
 function buildListScreens(){
@@ -1488,6 +1546,11 @@ function buildListScreens(){
     });
     section.querySelector('[data-action="excel"]').addEventListener('click', e => exportListExcel(screen, e.currentTarget));
     screen.grid.attachColumnMenu(section.querySelector('[data-action="columns"]'));
+    section.querySelector('[data-role="grid"]').addEventListener('click', e => {
+      const btn = e.target.closest('[data-remove-member]');
+      if(btn) removeFromProject(btn.dataset.removeMember, btn.dataset.name, screen);
+    });
+    section.querySelector('[data-action="add-existing"]')?.addEventListener('click', () => openAddExisting(screen));
     LIST_SCREENS[key] = screen;
   });
 }
@@ -1499,6 +1562,7 @@ function listParams(state, overrides = {}){
   if(s.grade) p.set('grade_band', s.grade);
   Object.keys(EMPTY_RANGES()).forEach(k => { if(s[k] !== '' && s[k] != null && !Number.isNaN(Number(s[k]))) p.set(k, s[k]); });
   if(s.sort){ p.set('sort', s.sort); p.set('order', s.order); }
+  if(currentProjectId) p.set('project_id', currentProjectId);
   p.set('page', s.page);
   p.set('page_size', s.pageSize);
   return p;
@@ -1513,6 +1577,8 @@ async function populateIndustrySelect(screen){
   }catch(e){ /* 업종 선택지만 비어 있음 */ }
 }
 async function loadListScreen(screen){
+  const addBtn = screen.section.querySelector('[data-action="add-existing"]');
+  if(addBtn) addBtn.hidden = !currentProjectId;
   if(!LIST_SCREENS_LOADED.has(screen.key)){
     LIST_SCREENS_LOADED.add(screen.key);
     populateIndustrySelect(screen);
@@ -1583,7 +1649,8 @@ let mailingGrid = null;
 async function loadMailing(){
   mailingGrid.setLoading(true);
   try{
-    const data = await api(`/api/mailing-list?page=${mailingState.page}&page_size=${mailingState.pageSize}`);
+    const data = await api(withProject(`/api/mailing-list?page=${mailingState.page}&page_size=${mailingState.pageSize}`));
+    document.getElementById('btnMailingExcel').href = withProject('/api/mailing-list/excel');
     mailingGrid.setItems(data.items);
     document.getElementById('mailingSummary').textContent = summaryText(data.total, mailingState.page, mailingState.pageSize);
     renderPagination(document.getElementById('mailingPagination'), data.total, mailingState.page, mailingState.pageSize, p => { mailingState.page = p; loadMailing(); });
@@ -1624,11 +1691,11 @@ const ISSUE_TYPES = {
 async function loadIssues(){
   issueGrid.setLoading(true);
   try{
-    let data = await api(`/api/issues?page=${issueState.page}&page_size=${issueState.pageSize}`);
+    let data = await api(withProject(`/api/issues?page=${issueState.page}&page_size=${issueState.pageSize}`));
     const totalPages = Math.max(1, Math.ceil(data.total / issueState.pageSize));
     if(issueState.page > totalPages){
       issueState.page = totalPages;
-      data = await api(`/api/issues?page=${issueState.page}&page_size=${issueState.pageSize}`);
+      data = await api(withProject(`/api/issues?page=${issueState.page}&page_size=${issueState.pageSize}`));
     }
     issueGrid.setItems(data.items, {offset:(issueState.page - 1) * issueState.pageSize});
     document.getElementById('issueSummary').textContent = summaryText(data.total, issueState.page, issueState.pageSize);
@@ -1736,12 +1803,17 @@ function initUpload(){
   input.addEventListener('change', () => { enqueueFiles(input.files); input.value = ''; });
 }
 function enqueueFiles(fileList){
+  if(!currentProjectId){
+    showToast('warning', '등록 대상 프로젝트를 먼저 선택해 주세요.');
+    document.getElementById('uploadProjectSelect')?.focus();
+    return;
+  }
   const files = Array.from(fileList);
   const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf'));
   if(pdfs.length < files.length) showToast('warning', `PDF가 아닌 파일 ${files.length - pdfs.length}개는 제외했습니다.`);
   if(!pdfs.length) return;
   if(!uploadQueue.length) document.getElementById('uploadLog').innerHTML = '';
-  pdfs.forEach(file => uploadQueue.push({file, name:file.name, status:'pending', message:'대기 중', company:null}));
+  pdfs.forEach(file => uploadQueue.push({file, name:file.name, status:'pending', message:'대기 중', company:null, projectId:currentProjectId}));
   renderUploadQueue();
   processUploadQueue();
 }
@@ -1779,7 +1851,7 @@ async function processUploadQueue(){
     const form = new FormData();
     form.append('file', item.file);
     try{
-      const company = await api('/api/upload', {method:'POST', body:form});
+      const company = await api(`/api/upload?project_id=${item.projectId}`, {method:'POST', body:form});
       item.company = company;
       item.status = company.issues.length ? 'warning' : 'done';
       item.message = `${company.company_name || '-'} · ${company.page_count || '-'}쪽 · 신용등급 ${company.credit_grade ? company.credit_grade.toUpperCase() : '미인식'}` +
@@ -1889,7 +1961,11 @@ async function loadDetail(businessNo, from){
   body.className = 'view';
   body.innerHTML = '<div class="app-card"><div class="loading-inline"><span class="spinner" aria-hidden="true"></span><span>불러오는 중…</span></div></div>';
   try{
-    const c = await api(`/api/companies/${encodeURIComponent(businessNo)}`);
+    const [c, joined] = await Promise.all([
+      api(`/api/companies/${encodeURIComponent(businessNo)}`),
+      api(`/api/companies/${encodeURIComponent(businessNo)}/projects`).catch(() => []),
+    ]);
+    c._projects = joined;
     if(token !== detailToken) return;
     setPageTitle(c.company_name || '기업 상세');
     body.innerHTML = renderDetail(c, from);
@@ -1939,6 +2015,8 @@ function renderDetail(c, from){
     {label:'보고서 기준', value:evalText || '-', wide:true},
     {label:'원본 파일', value:sourceName ? `${sourceName} (${c.page_count || '-'}쪽)` : '-', title:sourceName, wide:true},
     {label:'최근 업데이트', value:fmtDateTime(c.parsed_at), wide:true},
+    {label:'참여 프로젝트', wide:true, html:(c._projects || []).length
+      ? `<span class="chip-list">${c._projects.map(p => `<span class="${p.status === '종료' ? 'badge-tag' : 'badge-info'}">${esc(p.name)}</span>`).join('')}</span>` : '-'},
   ])));
 
   const extra = c.basic_extra || {}, tech = c.tech_info || {};
@@ -2079,9 +2157,231 @@ function wireDetailActions(c, from){
 }
 
 /* ============================================================
+   프로젝트 (PLAN.md Phase 9)
+   ============================================================ */
+const PROJECT_STATUS_BADGE = {'준비':'badge-tag', '진행중':'badge-info', '종료':'badge-success'};
+function projectPeriod(p){
+  return (p.start_date || p.end_date) ? `${fmtPlain(p.start_date) || '-'} ~ ${fmtPlain(p.end_date) || '-'}` : '-';
+}
+async function loadProjects(){
+  try{ projects = await api('/api/projects'); }catch(e){ projects = []; showToast('danger', `프로젝트 목록을 불러오지 못했습니다. ${e.message}`); }
+  if(currentProjectId && !projects.some(p => p.id === currentProjectId)) setCurrentProject(null, false);
+  renderProjectSelect();
+}
+function renderProjectSelect(){
+  const options = '<option value="">전체 프로젝트</option>' + projects.map(p => `<option value="${p.id}">${esc(p.name)}${p.status === '종료' ? ' (종료)' : ''}</option>`).join('');
+  for(const id of ['projectSelect', 'uploadProjectSelect']){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    el.innerHTML = id === 'uploadProjectSelect' ? '<option value="">프로젝트를 선택해 주세요</option>' + options.replace('<option value="">전체 프로젝트</option>', '') : options;
+    el.value = currentProjectId ? String(currentProjectId) : '';
+  }
+}
+function setCurrentProject(id, reload = true){
+  currentProjectId = id ? Number(id) : null;
+  storageSet('currentProject', currentProjectId ? String(currentProjectId) : '');
+  invalidateCaches();
+  Object.values(LIST_SCREENS).forEach(sc => { sc.state.page = 1; });
+  mailingState.page = 1; issueState.page = 1;
+  renderProjectSelect();
+  if(reload){ handleRoute(); refreshIssueCount(); }
+}
+
+let projectGrid = null;
+function initProjects(){
+  document.getElementById('projectSelect').addEventListener('change', e => setCurrentProject(e.target.value));
+  projectGrid = new DataGrid(document.getElementById('projectGrid'), {
+    ariaLabel:'프로젝트 목록', storageKey:'projects', frozen:'name', emptyText:'등록된 프로젝트가 없습니다. 프로젝트 등록 버튼으로 시작해 주세요.',
+    columns:[
+      {key:'name', label:'프로젝트명', render:p => `<a href="#/companies" data-select-project="${p.id}">${esc(p.name)}</a>${p.id === currentProjectId ? ' <span class="badge-info">선택됨</span>' : ''}`},
+      {key:'region', label:'지역', render:p => val(p.region)},
+      {key:'period', label:'사업기간', render:p => esc(projectPeriod(p))},
+      {key:'status', label:'상태', render:p => `<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
+      {key:'company_count', label:'참여 기업', render:p => `${p.company_count.toLocaleString('ko-KR')}개사`},
+      {key:'description', label:'설명', wrap:true, render:p => val(p.description)},
+      {key:'created_at', label:'등록일', render:p => fmtDate(p.created_at)},
+      {key:'actions', label:'관리', render:p =>
+        `<button type="button" class="${p.id === currentProjectId ? 'btn-task-progress' : 'btn-task-register'}" data-select-project="${p.id}">${p.id === currentProjectId ? '선택됨' : '선택'}</button>` +
+        `<button type="button" class="btn-task-done" data-edit-project="${p.id}">수정</button>` +
+        `<button type="button" class="btn-row-del" data-delete-project="${p.id}">삭제</button>`},
+    ],
+  });
+  projectGrid.attachColumnMenu(document.getElementById('projectColumns'));
+  document.getElementById('projectGrid').addEventListener('click', e => {
+    const sel = e.target.closest('[data-select-project]');
+    if(sel){ e.preventDefault(); setCurrentProject(sel.dataset.selectProject, false); showToast('success', `'${currentProject()?.name}' 프로젝트를 선택했습니다.`); location.hash = '#/companies'; return; }
+    const ed = e.target.closest('[data-edit-project]');
+    if(ed) return openProjectForm(projects.find(p => p.id === Number(ed.dataset.editProject)));
+    const del = e.target.closest('[data-delete-project]');
+    if(del) return deleteProject(projects.find(p => p.id === Number(del.dataset.deleteProject)));
+  });
+  document.getElementById('btnProjectCreate').addEventListener('click', () => openProjectForm(null));
+}
+async function loadProjectsView(){
+  projectGrid.setLoading(true);
+  await loadProjects();
+  projectGrid.setItems(projects);
+  document.getElementById('projectSummary').textContent = `총 ${projects.length.toLocaleString('ko-KR')}개`;
+  projectGrid.setLoading(false);
+}
+function openProjectForm(project){
+  const editing = !!project;
+  const p = project || {status:'진행중'};
+  const modal = openModal({
+    title: editing ? '프로젝트 수정' : '프로젝트 등록', size:'modal-lg',
+    bodyHtml:`<div class="form-section">
+      <div class="form-group col-full"><label class="form-label" for="pfName">프로젝트명<span class="required" aria-hidden="true">*</span></label>
+        <input class="form-control" id="pfName" maxlength="100" value="${esc(p.name || '')}" placeholder="예) 2026년 하반기 충북 스마트팜 지원사업" aria-required="true" aria-describedby="pfError"></div>
+      <div class="form-group"><label class="form-label" for="pfRegion">지역</label><input class="form-control" id="pfRegion" maxlength="100" value="${esc(p.region || '')}" placeholder="예) 충북"></div>
+      <div class="form-group"><label class="form-label" for="pfStatus">상태</label>
+        <select class="form-control" id="pfStatus">${['준비', '진행중', '종료'].map(st => `<option ${st === p.status ? 'selected' : ''}>${st}</option>`).join('')}</select></div>
+      <div class="form-group col-full"><span class="form-label" id="pfPeriodLabel">사업기간</span>
+        <div class="form-date-range" role="group" aria-labelledby="pfPeriodLabel">
+          <input class="form-control" type="date" id="pfStart" value="${esc((p.start_date || '').slice(0, 10))}" aria-label="시작일">
+          <span aria-hidden="true">~</span>
+          <input class="form-control" type="date" id="pfEnd" value="${esc((p.end_date || '').slice(0, 10))}" aria-label="종료일">
+        </div></div>
+      <div class="form-group col-full"><label class="form-label" for="pfDesc">설명</label><textarea class="form-control" id="pfDesc" maxlength="2000" placeholder="지원 대상·조건 등">${esc(p.description || '')}</textarea></div>
+      <p class="form-error col-full" id="pfError" hidden><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.danger}</svg><span></span></p>
+    </div>`,
+    actions:[
+      {label: editing ? '저장' : '등록', className:'btn-critical-primary', onClick: async (m, btn) => {
+        const q = id => m.root.querySelector(id);
+        const err = (msg, focusEl) => { q('#pfError').hidden = false; q('#pfError span').textContent = msg; if(focusEl){ focusEl.setAttribute('aria-invalid', 'true'); focusEl.focus(); } };
+        const body = {name:q('#pfName').value.trim(), region:q('#pfRegion').value.trim(), status:q('#pfStatus').value,
+          start_date:q('#pfStart').value || null, end_date:q('#pfEnd').value || null, description:q('#pfDesc').value.trim()};
+        if(!body.name) return err('프로젝트명을 입력해 주세요.', q('#pfName'));
+        if(body.start_date && body.end_date && body.start_date > body.end_date) return err('종료일은 시작일보다 빠를 수 없습니다.', q('#pfEnd'));
+        btn.disabled = true; btn.textContent = '저장 중…';
+        try{
+          const saved = await api(editing ? `/api/projects/${p.id}` : '/api/projects', {
+            method: editing ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+          m.close();
+          showToast('success', editing ? '프로젝트를 수정했습니다.' : `'${saved.name}' 프로젝트를 등록했습니다.`);
+          if(!editing){ setCurrentProject(saved.id, false); }
+          await loadProjects();
+          if(currentRoute?.view === 'projects') loadProjectsView(); else handleRoute();
+        }catch(e){
+          btn.disabled = false; btn.textContent = editing ? '저장' : '등록';
+          err(e.message, e.message.includes('이름') ? q('#pfName') : null);
+        }
+      }},
+      {label:'취소', className:'btn-secondary'},
+    ],
+  });
+  modal.root.querySelector('#pfName').addEventListener('input', e => { e.target.removeAttribute('aria-invalid'); modal.root.querySelector('#pfError').hidden = true; });
+}
+async function deleteProject(project){
+  const ok = await confirmModal({
+    title:'프로젝트 삭제', tone:'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
+    lead:`'${project.name}' 프로젝트를 삭제하시겠습니까?`,
+    text:`참여 기업 ${project.company_count}개사의 명단만 삭제됩니다.`,
+    note:'기업 분석 정보와 원본 PDF는 그대로 남아 다른 프로젝트에서 계속 쓸 수 있습니다.',
+  });
+  if(!ok) return;
+  try{
+    await api(`/api/projects/${project.id}`, {method:'DELETE'});
+    if(project.id === currentProjectId) setCurrentProject(null, false);
+    showToast('success', `'${project.name}' 프로젝트를 삭제했습니다.`);
+    loadProjectsView();
+  }catch(e){ showToast('danger', `삭제하지 못했습니다. ${e.message}`); }
+}
+async function removeFromProject(businessNo, name, screen){
+  const project = currentProject();
+  if(!project) return;
+  const ok = await confirmModal({
+    title:'프로젝트에서 제외', tone:'warning', confirmLabel:'제외', confirmClass:'btn-delete',
+    lead:`'${name}'을(를) '${project.name}'에서 제외하시겠습니까?`,
+    text:'이 프로젝트의 참여 기업 명단에서만 빠집니다.', note:'기업 분석 정보는 남아 있어 언제든 다시 추가할 수 있습니다.',
+  });
+  if(!ok) return;
+  try{
+    await api(`/api/projects/${project.id}/companies/${encodeURIComponent(businessNo)}`, {method:'DELETE'});
+    showToast('success', `'${name}'을(를) 프로젝트에서 제외했습니다.`);
+    invalidateCaches(); loadProjects(); loadListScreen(screen); refreshIssueCount();
+  }catch(e){ showToast('danger', `제외하지 못했습니다. ${e.message}`); }
+}
+async function openAddExisting(screen){
+  const project = currentProject();
+  if(!project) return;
+  let all = [], members = new Set();
+  try{
+    const [a, m] = await Promise.all([api('/api/companies?page_size=5000'), api(`/api/companies?page_size=5000&project_id=${project.id}`)]);
+    all = a.items; members = new Set(m.items.map(i => i.business_no));
+  }catch(e){ showToast('danger', `기업 목록을 불러오지 못했습니다. ${e.message}`); return; }
+  const candidates = all.filter(c => !members.has(c.business_no));
+  const picked = new Set();  // 검색어를 바꿔도 선택이 유지되도록 따로 기억
+  const rowsHtml = list => list.length ? list.map(c => `<tr>
+      <td><input type="checkbox" class="add-pick" value="${esc(c.business_no)}" ${picked.has(c.business_no) ? 'checked' : ''} aria-label="${esc(c.company_name)} 선택"></td>
+      <td>${esc(c.company_name)}</td><td>${esc(c.business_no)}</td><td>${esc(c.industry_name || '-')}</td>
+      <td>${fmtNum(c.revenue_latest)}</td><td>${gradeBadge(c.credit_grade)}</td></tr>`).join('')
+    : '<tr><td class="table-empty" colspan="6">추가할 수 있는 기업이 없습니다.</td></tr>';
+  const modal = openModal({
+    title:'기존 기업 추가', size:'modal-xl',
+    bodyHtml:`${noticeBox('info', null, `이미 PDF로 분석된 기업을 '${project.name}' 프로젝트에 추가합니다.`, 'PDF를 다시 올리지 않아도 됩니다.')}
+      <div class="filter-row"><label class="filter-label w-80" for="addSearch">검색어</label><input class="filter-input" id="addSearch" placeholder="기업명 또는 사업자번호" autocomplete="off"></div>
+      <div class="table-scroll-wrapper"><table class="data-table" aria-label="추가할 기업 선택">
+        <thead><tr><th scope="col"><input type="checkbox" id="addAll" aria-label="전체 선택"></th><th scope="col">기업명</th><th scope="col">사업자번호</th><th scope="col">업종</th><th scope="col">매출액(백만원)</th><th scope="col">신용등급</th></tr></thead>
+        <tbody id="addRows">${rowsHtml(candidates)}</tbody></table></div>`,
+    actions:[
+      {label:'추가', className:'btn-critical-primary', onClick: async (m, btn) => {
+        if(!picked.size){ showToast('warning', '추가할 기업을 선택해 주세요.'); return; }
+        btn.disabled = true; btn.textContent = '추가 중…';
+        try{
+          const res = await api(`/api/projects/${project.id}/companies`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({business_nos:[...picked]})});
+          m.close(); showToast('success', `${res.added}개 기업을 프로젝트에 추가했습니다.`);
+          invalidateCaches(); await loadProjects(); await loadListScreen(screen); refreshIssueCount();
+        }catch(e){ btn.disabled = false; btn.textContent = '추가'; showToast('danger', `추가하지 못했습니다. ${e.message}`); }
+      }},
+      {label:'취소', className:'btn-secondary'},
+    ],
+  });
+  const rows = modal.root.querySelector('#addRows');
+  modal.root.querySelector('#addSearch').addEventListener('input', debounce(e => {
+    const q = e.target.value.trim();
+    rows.innerHTML = rowsHtml(candidates.filter(c => !q || c.company_name.includes(q) || c.business_no.includes(q)));
+  }, 200));
+  rows.addEventListener('change', e => { if(e.target.classList.contains('add-pick')){ if(e.target.checked) picked.add(e.target.value); else picked.delete(e.target.value); } });
+  modal.root.querySelector('#addAll').addEventListener('change', e => rows.querySelectorAll('.add-pick').forEach(cb => {
+    cb.checked = e.target.checked; if(cb.checked) picked.add(cb.value); else picked.delete(cb.value); }));
+}
+function renderUploadTarget(){
+  const el = document.getElementById('uploadTargetCard');
+  const project = currentProject();
+  if(!projects.length){
+    el.innerHTML = `<div class="app-card-header"><h2 class="card-title">등록 대상 프로젝트</h2></div>` +
+      noticeBox('warning', '등록된 프로젝트가 없습니다.', '기업 PDF는 프로젝트 단위로 등록합니다. 프로젝트 목록에서 먼저 프로젝트를 등록해 주세요.', null) +
+      `<div class="table-bottom-actions"><a class="btn-primary" href="#/projects">프로젝트 목록으로 이동</a></div>`;
+  }else{
+    el.innerHTML = `<div class="app-card-header"><h2 class="card-title">등록 대상 프로젝트</h2>${project ? `<span class="card-meta">참여 기업 ${project.company_count}개사</span>` : ''}</div>
+      <div class="filter-row"><label class="filter-label w-80" for="uploadProjectSelect">프로젝트</label><select class="filter-select w-wide" id="uploadProjectSelect"></select></div>
+      ${project ? `<p class="form-hint">업로드한 기업은 '${esc(project.name)}' 프로젝트의 참여 기업으로 등록됩니다. 이미 분석된 기업이면 최신 PDF로 갱신됩니다.</p>`
+        : noticeBox('warning', null, '업로드할 프로젝트를 선택해 주세요. 프로젝트를 선택해야 PDF를 등록할 수 있습니다.', null)}`;
+    renderProjectSelect();
+    document.getElementById('uploadProjectSelect').addEventListener('change', e => setCurrentProject(e.target.value, false) || renderUploadTarget());
+  }
+  document.getElementById('dropzone').classList.toggle('is-disabled', !project);
+}
+function renderDashProjectInfo(){
+  const el = document.getElementById('dashProjectInfo');
+  const p = currentProject();
+  if(!p){
+    el.innerHTML = noticeBox('info', null, projects.length ? '전체 프로젝트 기준 현황입니다. 사이드바에서 프로젝트를 선택하면 해당 프로젝트 기준으로 볼 수 있습니다.'
+      : '아직 등록된 프로젝트가 없습니다. 프로젝트 관리 > 프로젝트 목록에서 지원사업 등 프로젝트를 먼저 등록해 주세요.', null);
+    return;
+  }
+  el.innerHTML = card(p.name, kvGrid([
+    {label:'상태', html:`<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
+    {label:'참여 기업', value:`${p.company_count.toLocaleString('ko-KR')}개사`},
+    {label:'지역', value:p.region || '-'}, {label:'사업기간', value:projectPeriod(p)},
+    p.description ? {label:'설명', value:p.description, wide:true} : null,
+  ]), '현재 프로젝트');
+}
+
+/* ============================================================
    초기화
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   renderSidebar();
   initSidebarToggle();
   initPageTools();
@@ -2089,10 +2389,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initMailing();
   initIssues();
   initUpload();
+  initProjects();
   window.addEventListener('hashchange', handleRoute);
   if(!location.hash) history.replaceState(null, '', '#/dashboard');
-  handleRoute();
-  refreshIssueCount();
+  loadProjects().then(() => { handleRoute(); refreshIssueCount(); });
 });
 </script>
 </body>

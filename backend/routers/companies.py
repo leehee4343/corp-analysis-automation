@@ -22,13 +22,14 @@ def list_companies(
     revenue_min: float | None = None,
     revenue_max: float | None = None,
     ranges: MetricRanges = Depends(),
+    project_id: int | None = None,
     sort: str | None = None,
     order: Literal["asc", "desc"] = "desc",
     page: int = 1,
     page_size: int = 20,
 ):
     companies = storage.filter_companies(
-        storage.list_companies(),
+        storage.list_companies(project_id),
         q=q, industry=industry, grade_band_filter=grade_band,
         revenue_min=revenue_min, revenue_max=revenue_max, ranges=ranges.as_dict(),
     )
@@ -94,8 +95,8 @@ def delete_company(business_no: str):
 
 
 @router.get("/dashboard/summary", response_model=DashboardSummary)
-def dashboard_summary():
-    companies = storage.list_companies()
+def dashboard_summary(project_id: int | None = None):
+    companies = storage.list_companies(project_id)
     total = len(companies)
     complete = sum(1 for c in companies if c.status == "complete")
 

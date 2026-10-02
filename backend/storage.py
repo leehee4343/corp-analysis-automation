@@ -50,6 +50,27 @@ def _get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            region TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            status TEXT NOT NULL DEFAULT '진행중',
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS project_companies (
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            business_no TEXT NOT NULL,
+            added_at TEXT NOT NULL,
+            PRIMARY KEY (project_id, business_no)
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS companies (
             business_no TEXT PRIMARY KEY,
@@ -250,19 +271,127 @@ def delete_company(business_no: str) -> bool:
     conn = _get_conn()
     with conn:
         cursor = conn.execute("DELETE FROM companies WHERE business_no = ?", (business_no,))
+        conn.execute("DELETE FROM project_companies WHERE business_no = ?", (business_no,))  # Postgres는 FK cascade
     conn.close()
     return cursor.rowcount > 0
 
 
-def list_companies() -> list[Company]:
+def list_companies(project_id: int | None = None) -> list[Company]:
+    """전체 기업, 또는 project_id가 있으면 그 프로젝트의 참여 기업만."""
+    where = " WHERE business_no IN (SELECT business_no FROM project_companies WHERE project_id = {p})" if project_id else ""
     if _pg_url():
         with _pg_conn() as conn:
-            rows = conn.execute("SELECT data FROM companies ORDER BY business_no").fetchall()
+            rows = conn.execute(f"SELECT data FROM companies{where.format(p='%s')} ORDER BY business_no",
+                                (project_id,) if project_id else ()).fetchall()
         return [Company.model_validate(row[0]) for row in rows]
     conn = _get_conn()
-    rows = conn.execute("SELECT data FROM companies ORDER BY business_no").fetchall()
+    rows = conn.execute(f"SELECT data FROM companies{where.format(p='?')} ORDER BY business_no",
+                        (project_id,) if project_id else ()).fetchall()
     conn.close()
     return [Company.model_validate_json(row[0]) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# 프로젝트 (지원사업 등): 기업 PDF는 프로젝트 단위로 등록한다. 기업과 다대다.
+# ---------------------------------------------------------------------------
+_PROJECT_FIELDS = ("name", "description", "region", "start_date", "end_date", "status")
+
+
+def _run(sql: str, params: tuple = (), *, fetch: str | None = None):
+    """Postgres(%s)·SQLite(?) 공통 실행. fetch: None | 'one' | 'all'. 반환: (결과, 영향 행 수)."""
+    if _pg_url():
+        with _pg_conn() as conn:
+            cur = conn.execute(sql, params)
+            result = cur.fetchone() if fetch == "one" else cur.fetchall() if fetch == "all" else None
+            return result, cur.rowcount
+    conn = _get_conn()
+    with conn:
+        cur = conn.execute(sql.replace("%s", "?"), params)
+        result = cur.fetchone() if fetch == "one" else cur.fetchall() if fetch == "all" else None
+        rowcount = cur.rowcount
+    conn.close()
+    return result, rowcount
+
+
+def _iso(value) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+_PROJECT_SELECT = """
+    SELECT p.id, p.name, p.description, p.region, p.start_date, p.end_date, p.status, p.created_at,
+           (SELECT COUNT(*) FROM project_companies pc WHERE pc.project_id = p.id) AS company_count
+    FROM projects p
+"""
+
+
+def _project_row(row) -> dict:
+    keys = ("id", "name", "description", "region", "start_date", "end_date", "status", "created_at", "company_count")
+    out = dict(zip(keys, row))
+    for k in ("start_date", "end_date", "created_at"):
+        out[k] = _iso(out[k])
+    return out
+
+
+def list_projects() -> list[dict]:
+    rows, _ = _run(_PROJECT_SELECT + " ORDER BY p.created_at DESC, p.id DESC", fetch="all")
+    return [_project_row(r) for r in rows]
+
+
+def get_project(project_id: int) -> dict | None:
+    row, _ = _run(_PROJECT_SELECT + " WHERE p.id = %s", (project_id,), fetch="one")
+    return _project_row(row) if row else None
+
+
+def project_name_exists(name: str, exclude_id: int | None = None) -> bool:
+    row, _ = _run("SELECT id FROM projects WHERE name = %s", (name,), fetch="one")
+    return bool(row) and row[0] != exclude_id
+
+
+def create_project(data: dict) -> dict:
+    values = tuple(data.get(k) for k in _PROJECT_FIELDS) + (datetime.now(timezone.utc).isoformat(),)
+    row, _ = _run(
+        "INSERT INTO projects (name, description, region, start_date, end_date, status, created_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id", values, fetch="one")
+    return get_project(row[0])
+
+
+def update_project(project_id: int, changes: dict) -> dict | None:
+    changes = {k: v for k, v in changes.items() if k in _PROJECT_FIELDS}
+    if changes:
+        sets = ", ".join(f"{k} = %s" for k in changes)
+        _run(f"UPDATE projects SET {sets} WHERE id = %s", tuple(changes.values()) + (project_id,))
+    return get_project(project_id)
+
+
+def delete_project(project_id: int) -> bool:
+    """프로젝트와 참여 명단만 삭제한다. 기업 분석 데이터·원본 PDF는 남는다."""
+    _run("DELETE FROM project_companies WHERE project_id = %s", (project_id,))
+    _, count = _run("DELETE FROM projects WHERE id = %s", (project_id,))
+    return count > 0
+
+
+def add_companies_to_project(project_id: int, business_nos: list[str]) -> int:
+    """이미 참여 중이면 건너뛴다. 반환: 새로 추가된 수."""
+    added = 0
+    now = datetime.now(timezone.utc).isoformat()
+    for bn in dict.fromkeys(business_nos):
+        _, count = _run("INSERT INTO project_companies (project_id, business_no, added_at) VALUES (%s, %s, %s) "
+                        "ON CONFLICT (project_id, business_no) DO NOTHING", (project_id, bn, now))
+        added += max(count, 0)
+    return added
+
+
+def remove_company_from_project(project_id: int, business_no: str) -> bool:
+    _, count = _run("DELETE FROM project_companies WHERE project_id = %s AND business_no = %s", (project_id, business_no))
+    return count > 0
+
+
+def projects_of_company(business_no: str) -> list[dict]:
+    rows, _ = _run("SELECT p.id, p.name, p.status FROM projects p JOIN project_companies pc ON pc.project_id = p.id "
+                   "WHERE pc.business_no = %s ORDER BY p.created_at DESC", (business_no,), fetch="all")
+    return [{"id": r[0], "name": r[1], "status": r[2]} for r in rows]
 
 
 def source_pdf_path(business_no: str) -> str:
@@ -309,8 +438,8 @@ def load_source_pdf(company: Company) -> tuple[str, bytes] | None:
     return (path.name, path.read_bytes()) if path.exists() else None
 
 
-def list_issues() -> list[tuple[Company, ValidationIssue]]:
-    return [(company, issue) for company in list_companies() for issue in company.issues]
+def list_issues(project_id: int | None = None) -> list[tuple[Company, ValidationIssue]]:
+    return [(company, issue) for company in list_companies(project_id) for issue in company.issues]
 
 
 def update_company(business_no: str, update: CompanyUpdate) -> Company | None:

@@ -9,10 +9,10 @@ router = APIRouter(prefix="/api", tags=["validation"])
 
 
 @router.get("/issues", response_model=IssueList)
-def list_issues(page: int = 1, page_size: int = 10):
+def list_issues(page: int = 1, page_size: int = 10, project_id: int | None = None):
     entries = [
         IssueEntry(business_no=company.business_no, company_name=company.company_name, issue=issue)
-        for company, issue in storage.list_issues()
+        for company, issue in storage.list_issues(project_id)
     ]
     total = len(entries)
     start = max(page - 1, 0) * page_size
