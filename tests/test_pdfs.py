@@ -52,3 +52,10 @@ def test_delete_selected_removes_pdf_company_and_membership(client):
 
 def test_delete_requires_selection(client):
     assert client.post("/api/pdfs/delete", json={"business_nos": []}).status_code == 422
+
+
+def test_source_pdf_inline_or_download(client):
+    view = client.get("/api/companies/111-11-11111/source-pdf")
+    assert view.status_code == 200 and view.headers["content-disposition"].startswith("inline")
+    down = client.get("/api/companies/111-11-11111/source-pdf", params={"download": "true"})
+    assert down.headers["content-disposition"].startswith("attachment") and down.content.startswith(b"%PDF")

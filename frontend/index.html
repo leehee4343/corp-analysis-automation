@@ -2302,10 +2302,9 @@ function initPdfList(){
       {key:'business_no', label:'사업자번호', render:i => esc(i.business_no)},
       {key:'size', label:'크기', render:i => fmtSize(i.size_bytes)},
       {key:'uploaded_at', label:'업로드 일시', render:i => fmtDateTime(i.uploaded_at)},
-      {key:'projects', label:'참여 프로젝트', render:i => i.projects?.length
-        ? `<span class="chip-list">${i.projects.map(n => `<span class="${currentProject()?.name === n ? 'badge-info' : 'badge-tag'}">${esc(n)}</span>`).join('')}</span>` : '-'},
       {key:'actions', label:'관리', render:i =>
         `<a class="btn-file-preview" href="/api/companies/${encodeURIComponent(i.business_no)}/source-pdf" target="_blank" rel="noopener">바로보기</a>` +
+        `<a class="btn-file-download" href="/api/companies/${encodeURIComponent(i.business_no)}/source-pdf?download=true" download="${esc(i.filename)}">다운로드</a>` +
         `<button type="button" class="btn-row-del" data-delete-pdf="${esc(i.business_no)}">삭제</button>`},
     ],
   });

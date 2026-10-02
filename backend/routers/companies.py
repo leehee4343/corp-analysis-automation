@@ -67,7 +67,8 @@ def download_excel(business_no: str):
 
 
 @router.get("/companies/{business_no}/source-pdf")
-def download_source_pdf(business_no: str):
+def download_source_pdf(business_no: str, download: bool = False):
+    """원본 PDF. 기본은 브라우저에서 바로 열기(inline), download=true면 파일로 내려받기(attachment)."""
     company = storage.load_company(business_no)
     if company is None:
         raise HTTPException(status_code=404, detail="등록되지 않은 사업자번호입니다.")
@@ -75,8 +76,8 @@ def download_source_pdf(business_no: str):
     if source is None:
         raise HTTPException(status_code=404, detail="원본 PDF 파일을 찾을 수 없습니다.")
     filename, content = source
-    # 브라우저에서 바로 열리도록 inline, 한글 파일명은 RFC 5987 형식으로 전달
-    disposition = f"inline; filename*=UTF-8''{quote(filename)}"
+    # 한글 파일명은 RFC 5987 형식으로 전달
+    disposition = f"{'attachment' if download else 'inline'}; filename*=UTF-8''{quote(filename)}"
     return Response(content, media_type="application/pdf", headers={"Content-Disposition": disposition})
 
 
