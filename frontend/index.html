@@ -344,6 +344,17 @@ a.todo-card:visited{color:var(--text-main);}
 .bar-label{font-size:13px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .bar-track{display:block; height:12px; background:#f1f5f9; border-radius:var(--radius-full); overflow:hidden;}
 .bar-fill{display:block; height:100%; border-radius:var(--radius-full); transition:width .6s ease;}
+/* 세로 막대 차트 (매출액 구간): 카드 높이를 채우고 막대는 아래에서 위로 */
+.col-chart{flex:1; display:flex; align-items:stretch; gap:6px; min-height:220px; padding-top:4px;}
+.col-item{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:6px; border-radius:var(--radius-sm);}
+.col-value{font-size:14px; font-weight:700; color:var(--text-title); display:flex; flex-direction:column; align-items:center; line-height:1.3;}
+.col-value small{font-size:12px; font-weight:400; color:var(--text-muted);}
+.col-track{flex:1; width:100%; max-width:44px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border-color, #e2e8f0);}
+.col-fill{display:block; width:100%; min-height:2px; border-radius:6px 6px 0 0;}
+.col-label{font-size:12px; letter-spacing:-0.3px; line-height:1.3; height:2.6em; text-align:center; word-break:keep-all; color:var(--text-body, #475569); max-width:100%;}
+.col-item.is-link{cursor:pointer;}
+.col-item.is-link:hover .col-label{color:var(--primary-blue); text-decoration:underline;}
+.col-item.is-link:hover .col-fill{filter:brightness(1.08);}
 .bar-row.is-link{cursor:pointer; border-radius:var(--radius-sm);}
 .bar-row.is-link:hover .bar-label{color:var(--primary-blue); text-decoration:underline;}
 .bar-row.is-link:hover .bar-fill{filter:brightness(1.08);}
@@ -1347,15 +1358,27 @@ function renderGradeChart(grades, total){
     .map(([k, f]) => `<span><i class="legend-dot ${f}"></i>${k}</span>`).join('');
   el.innerHTML = barChartHtml(rows, `신용등급별 기업 수 (전체 ${total}개)`, legend);
 }
-// 매출액 구간별 기업 수 막대. 막대(행)를 누르면 그 매출 구간으로 검색된 기업 목록으로 이동.
+// 세로 막대(가로로 나란히). rows {label, value, fill, suffix, unit} — 위에 값(+suffix)과 보조값(unit), 아래에 구간 이름.
+function columnChartHtml(rows, ariaLabel){
+  const max = Math.max(...rows.map(r => r.value || 0), 1);
+  const described = rows.map(r => `${r.label} ${fmtNum(r.value)}`).join(', ');
+  return `<div class="col-chart" role="img" aria-label="${esc(`${ariaLabel}: ${described}`)}">
+    ${rows.map(r => `<div class="col-item">
+      <span class="col-value">${fmtNum(r.value)}${r.suffix ? esc(r.suffix) : ''}${r.unit ? `<small>${esc(r.unit)}</small>` : ''}</span>
+      <span class="col-track"><span class="col-fill ${r.fill}" style="height:${((r.value || 0) / max * 100).toFixed(1)}%"></span></span>
+      <span class="col-label" title="${esc(r.label)}">${esc(r.label).replace('~', '~<wbr>').replace(' ', '<wbr> ')}</span>
+    </div>`).join('')}
+  </div>`;
+}
+// 매출액 구간별 기업 수 세로 막대. 막대를 누르면 그 매출 구간으로 검색된 기업 목록으로 이동.
 function renderRevenueChart(bands, total){
   const el = document.getElementById('revenueChart');
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
   const rows = bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => ({
-    label:b.label, value:b.count, unit:`개 (${(b.count / total * 100).toFixed(0)}%)`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
+    label:b.label, value:b.count, suffix:'개', unit:`${(b.count / total * 100).toFixed(0)}%`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
   }));
-  el.innerHTML = barChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`);
-  el.querySelectorAll('.bar-row').forEach((row, i) => {
+  el.innerHTML = columnChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`);
+  el.querySelectorAll('.col-item').forEach((row, i) => {
     const band = bands.filter(b => b.count || b.label !== '매출 정보 없음')[i];
     if(!band || band.label === '매출 정보 없음' || !band.count) return;
     row.classList.add('is-link');
