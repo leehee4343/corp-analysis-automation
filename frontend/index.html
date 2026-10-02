@@ -155,7 +155,7 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 select.form-control, .filter-select, .select-per-page{appearance:none; padding-right:38px; cursor:pointer;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2358687b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 14px center; background-size:16px;}
-.select-per-page{width:100px;}
+.select-per-page{width:130px;}  /* '한번에 보기'(page_size 100000 = 전체 1페이지)까지 들어가는 폭 */
 :is(.form-control, .filter-input, .filter-select, .select-per-page):focus{border-color:var(--primary-blue); box-shadow:0 0 0 2px rgba(25,118,210,.15); outline:none;}
 :is(.form-control, .filter-input, .filter-select, .select-per-page):focus-visible{outline:2px solid var(--primary-blue); outline-offset:2px;}
 .form-control[aria-invalid="true"]{border-color:var(--point-red);}
@@ -545,7 +545,7 @@ body.modal-open{overflow:hidden;}
           <div class="grid-page-summary" id="mailingSummary">1 / 1 (총 0개)</div>
           <div class="table-actions">
             <label class="sr-only" for="mailingPerPage">페이지당 건수</label>
-            <select class="select-per-page" id="mailingPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option></select>
+            <select class="select-per-page" id="mailingPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
             <button type="button" class="btn-secondary" id="mailingColumns">열 설정</button>
             <a class="btn-secondary" href="/api/mailing-list/excel" id="btnMailingExcel"><svg class="icon-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="m9 12 6 6"/><path d="m15 12-6 6"/></svg>엑셀 다운로드</a>
           </div>
@@ -595,7 +595,7 @@ body.modal-open{overflow:hidden;}
           <div class="grid-page-summary" id="pdfSummary">1 / 1 (총 0개)</div>
           <div class="table-actions">
             <label class="sr-only" for="pdfPerPage">페이지당 건수</label>
-            <select class="select-per-page" id="pdfPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option></select>
+            <select class="select-per-page" id="pdfPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
             <button type="button" class="btn-secondary" id="pdfColumns">열 설정</button>
             <button type="button" class="btn-delete" id="btnPdfDeleteSelected" disabled>선택 삭제</button>
           </div>
@@ -617,7 +617,7 @@ body.modal-open{overflow:hidden;}
           <div class="grid-page-summary" id="issueSummary">1 / 1 (총 0개)</div>
           <div class="table-actions">
             <label class="sr-only" for="issuePerPage">페이지당 건수</label>
-            <select class="select-per-page" id="issuePerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option></select>
+            <select class="select-per-page" id="issuePerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
             <button type="button" class="btn-secondary" id="issueColumns">열 설정</button>
           </div>
         </div>
@@ -1503,7 +1503,7 @@ function listScreenTemplate(key){
         <div class="grid-page-summary" data-role="summary">1 / 1 (총 0개)</div>
         <div class="table-actions">
           <label class="sr-only" for="${p}-per-page">페이지당 건수</label>
-          <select class="select-per-page" id="${p}-per-page" data-role="per-page"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option></select>
+          <select class="select-per-page" id="${p}-per-page" data-role="per-page"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
           <button type="button" class="btn-secondary" data-action="columns">열 설정</button>
           <button type="button" class="btn-secondary" data-action="excel">${ICONS.excel}엑셀 다운로드</button>
         </div>
