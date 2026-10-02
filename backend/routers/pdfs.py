@@ -17,6 +17,8 @@ class SourcePdf(BaseModel):
     size_bytes: int | None = None
     uploaded_at: str | None = None
     projects: list[str] = []
+    missed: int | None = None       # 미추출 값 수
+    target: int | None = None       # 추출 대상 값 수
 
 
 class DeleteInput(BaseModel):

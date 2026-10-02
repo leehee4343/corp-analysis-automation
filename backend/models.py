@@ -101,6 +101,8 @@ class Company(BaseModel):
     """연혁 [{date, content}]."""
     bid_summary: dict[str, str | None] = Field(default_factory=dict)
     tech_info: dict[str, str | None] = Field(default_factory=dict)
+    extraction_coverage: dict = Field(default_factory=dict)
+    """추출 완성도 {target: 추출 대상 값 수, missed: 미추출 수, missed_items: [미추출 원문 ≤50]} — 빈 칸은 추출된 것으로 봄."""
 
     parsed_at: datetime
     issues: list[ValidationIssue] = Field(default_factory=list)

@@ -486,6 +486,7 @@ class ParsedCompany:
     history: list = field(default_factory=list)
     bid_summary: dict = field(default_factory=dict)
     tech_info: dict = field(default_factory=dict)
+    extraction_coverage: dict = field(default_factory=dict)
 
 
 _SECTION_STOPS = {
@@ -596,6 +597,18 @@ def _parse_extended(all_lines: list[str], basic_lines: list[str], result: "Parse
         personal = _safe(errors, "대표자 인적사항", lambda: S.parse_personal(all_lines, sec[0], sec[1])) or {}
         result.personal_info = {k: v for k, v in personal.items() if k != "주요경력사항"}
     result.bid_summary = _safe(errors, "나라장터 입찰정보", lambda: S.parse_bid_summary(all_lines)) or {}
+
+    # 4페이지 주요주주·관계회사·주요구매처·주요판매처 요약(이름·지분율) — 4열이 섞여 나와 원문 그대로 보존
+    def relation_summary():
+        i = S.find_line(all_lines, "주요주주")
+        if i is None or all_lines[i + 1:i + 4] != ["관계회사", "주요구매처", "주요판매처"]:
+            return None
+        end = S.find_line(all_lines, L.BALANCE_SUMMARY_HEADER, i) or i + 40
+        body = [l for l in all_lines[i + 4:end] if not _is_page_furniture(l)]
+        return " ".join(body) or None
+    summary = _safe(errors, "주요주주·관계회사·거래처 요약", relation_summary)
+    if summary:
+        result.soft_sections["주요주주·관계회사·거래처 요약"] = summary
     result.tech_info = _safe(errors, "기술력", lambda: S.parse_tech(all_lines)) or {}
 
     # 주요주주·관계회사·구매처·판매처 존재 여부: 상세 영역(원문/표) 기준으로 판정
@@ -685,6 +698,14 @@ def parse_pdf(path: str) -> ParsedCompany:
             result.evaluation_date = m.group(1)
         if m := L.SETTLEMENT_DATE_RE.search(full_text):
             result.settlement_date = m.group(1)
+
+        # 추출 완성도: PDF 값 중 저장되지 않은 개수 / 추출 대상 개수 (coverage.py)
+        def coverage_of():
+            from . import coverage
+            extracted = {k: v for k, v in result.__dict__.items()
+                         if k not in ("parse_errors", "source_pdf", "missing_fields", "cross_check_mismatch", "extraction_coverage")}
+            return coverage.compute(all_lines, extracted)
+        result.extraction_coverage = _safe(errors, "추출 완성도 계산", coverage_of) or {}
 
         required = ["business_no", "company_name", "representative", "address"]
         result.missing_fields = [f for f in required if not getattr(result, f)]

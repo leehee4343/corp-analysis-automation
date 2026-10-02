@@ -195,6 +195,7 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
         history=parsed.history,
         bid_summary=parsed.bid_summary,
         tech_info=parsed.tech_info,
+        extraction_coverage=parsed.extraction_coverage,
         parsed_at=datetime.now(timezone.utc),
         issues=issues,
     )
@@ -447,7 +448,10 @@ def list_source_pdfs(project_id: int | None = None) -> list[dict]:
                 items.append({"business_no": c.business_no, "filename": path.name, "size_bytes": path.stat().st_size,
                               "uploaded_at": c.parsed_at.isoformat()})
     for item in items:
-        item["company_name"] = companies[item["business_no"]].company_name
+        company = companies[item["business_no"]]
+        item["company_name"] = company.company_name
+        item["missed"] = company.extraction_coverage.get("missed")
+        item["target"] = company.extraction_coverage.get("target")
     return sorted(items, key=lambda i: i["uploaded_at"] or "", reverse=True)
 
 

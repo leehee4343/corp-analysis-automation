@@ -237,8 +237,8 @@ def parse_diagnosis_details(lines: list[str]) -> dict[str, dict]:
         half = len(rows) // 2
         compare, history = rows[:half], rows[half:]
         years = assign_years(years_in(lines, s + 2, e), 3)
-        # 요약 문장: "성장역량은양호함" 또는 "성장역량은보통이하임"
-        summary = next((l for l in lines[s + 2:e] if re.search(r"(은|는)\S+(함|임)$", l) and not is_value(l)), None)
+        # 요약 문장: "성장역량은양호함" / "…보통이하임" / "…낮음"
+        summary = next((l for l in lines[s + 2:e] if re.search(r"(은|는)\S+(함|임|음)$", l) and not is_value(l)), None)
         indicators = []
         for (_, name, (avg, yoy, company)), (_, _, hist) in zip(compare, history):
             indicators.append({
