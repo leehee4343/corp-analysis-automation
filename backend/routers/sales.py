@@ -29,12 +29,15 @@ class SalesRow(BaseModel):
     decision: Literal["승인", "거절"] | None = None
     decided_at: str | None = None
     updated_at: str | None = None
+    memo: str | None = None
+    memo_updated_at: str | None = None
 
 
 class SalesUpdate(BaseModel):
-    """보낸 필드만 바꾼다. decision에 null을 보내면 '미정'으로 되돌린다."""
+    """보낸 필드만 바꾼다. decision에 null을 보내면 '미정'으로, memo에 null·빈 값을 보내면 메모 삭제."""
     dm_sent: bool | None = None
     decision: Literal["승인", "거절"] | None = None
+    memo: str | None = Field(default=None, max_length=2000)
 
 
 class SalesTarget(BaseModel):
@@ -47,11 +50,11 @@ class SalesBulkUpdate(SalesUpdate):
 
 
 def _changes(data: SalesUpdate) -> dict:
-    changes = {k: getattr(data, k) for k in data.model_fields_set if k in ("dm_sent", "decision")}
+    changes = {k: getattr(data, k) for k in data.model_fields_set if k in ("dm_sent", "decision", "memo")}
     if changes.get("dm_sent", False) is None:
         raise HTTPException(status_code=422, detail="dm_sent는 true 또는 false여야 합니다.")
     if not changes:
-        raise HTTPException(status_code=422, detail="바꿀 항목(dm_sent, decision)이 없습니다.")
+        raise HTTPException(status_code=422, detail="바꿀 항목(dm_sent, decision, memo)이 없습니다.")
     return changes
 
 

@@ -341,6 +341,9 @@ th[aria-sort="descending"] .sort-icon{color:var(--primary-blue);} th[aria-sort="
 /* 영업 관리: 선택 일괄 처리 줄, 표 안 DM 체크·결과 선택 */
 .table-bulk-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .table-bulk-label{font-size:13px; color:var(--text-muted); margin-right:4px;}
+textarea.form-control.memo-textarea{min-height:200px;}
+.content-inner-gap-top{margin-top:var(--content-inner-gap);}
+.memo-count{text-align:right;}
 .dm-check{display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;}
 .dm-check input{width:16px; height:16px; accent-color:var(--primary-blue); cursor:pointer;}
 .data-table select.decision-select{height:28px; width:96px; padding:0 30px 0 10px; background-position:right 8px center; border-radius:var(--radius-sm); text-align:center;}
@@ -667,7 +670,7 @@ body.modal-open{overflow:hidden;}
       <div class="todo-grid cols-5" id="salesKpis"></div>
       <form class="search-filter-card" id="salesFilter" novalidate>
         <div class="search-filter-grid">
-          <div class="filter-row"><label class="filter-label w-80" for="salesQ">검색어</label><input class="filter-input" id="salesQ" name="q" placeholder="기업명, 사업자번호 또는 대표자" autocomplete="off"></div>
+          <div class="filter-row"><label class="filter-label w-80" for="salesQ">검색어</label><input class="filter-input" id="salesQ" name="q" placeholder="기업명, 사업자번호, 대표자 또는 메모 내용" autocomplete="off"></div>
           <div class="filter-row"><label class="filter-label w-80" for="salesDm">DM 발송</label>
             <select class="filter-select" id="salesDm" name="dm"><option value="">전체</option><option value="sent">발송</option><option value="unsent">미발송</option></select></div>
           <div class="filter-row"><label class="filter-label w-80" for="salesDecision">결과</label>
@@ -1462,6 +1465,9 @@ function initSales(){
       {key:'decision', label:'결과', render:r => `<select class="filter-select decision-select${r.decision === '승인' ? ' is-approved' : r.decision === '거절' ? ' is-rejected' : ''}" data-sales-decision="${esc(salesKey(r))}" aria-label="${esc(r.company_name)} 승인/거절">
         ${[['', '미정'], ['승인', '승인'], ['거절', '거절']].map(([v, l]) => `<option value="${v}" ${(r.decision || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`},
       {key:'decided_at', label:'처리일', render:r => r.decided_at ? fmtDate(r.decided_at) : '-'},
+      // 메모가 있으면 한 단계 강조(진행중 버튼) + 마우스를 올리면 내용 미리보기
+      {key:'memo', label:'메모', render:r => `<button type="button" class="${r.memo ? 'btn-task-progress' : 'btn-task-done'}" data-sales-memo="${esc(salesKey(r))}"
+        ${r.memo ? `title="${esc(r.memo.length > 120 ? r.memo.slice(0, 120) + '…' : r.memo)}"` : ''} aria-label="${esc(r.company_name)} 메모${r.memo ? ' 보기' : ' 입력'}">${r.memo ? '메모 보기' : '메모'}</button>`},
     ],
   });
   salesGrid.attachColumnMenu(document.getElementById('salesColumns'));
@@ -1479,6 +1485,10 @@ function initSales(){
     }else if(t.dataset.salesDecision){
       saveSales([t.dataset.salesDecision], {decision:t.value || null}, t);
     }
+  });
+  grid.addEventListener('click', e => {
+    const btn = e.target.closest('[data-sales-memo]');
+    if(btn) openSalesMemo(btn.dataset.salesMemo);
   });
   document.getElementById('salesFilter').addEventListener('submit', e => {
     e.preventDefault();
@@ -1527,7 +1537,7 @@ function filteredSales(){
   const {q, dm, decision} = salesState.filter;
   const needle = q.replace(/\s/g, '').toLowerCase();
   return salesState.items.filter(r =>
-    (!needle || [r.company_name, r.business_no, r.business_no.replace(/-/g, ''), r.representative || ''].some(v => v.replace(/\s/g, '').toLowerCase().includes(needle)))
+    (!needle || [r.company_name, r.business_no, r.business_no.replace(/-/g, ''), r.representative || '', r.memo || ''].some(v => v.replace(/\s/g, '').toLowerCase().includes(needle)))
     && (!dm || (dm === 'sent') === r.dm_sent)
     && (!decision || (decision === '미정' ? !r.decision : r.decision === decision)));
 }
@@ -1567,9 +1577,9 @@ function renderSales(){
   const project = currentProject();
   CHART_EXPORTS.set('sales', {
     title: project ? `${project.name} 영업 관리` : '영업 관리', subtitle: `${project ? `프로젝트: ${project.name}` : '전체 프로젝트'} · ${items.length}개`,
-    columns:['No', '기업명', '사업자번호', '대표자', 'DM 발송', '발송일', '결과', '처리일'],
+    columns:['No', '기업명', '사업자번호', '대표자', 'DM 발송', '발송일', '결과', '처리일', '메모'],
     rows: items.map((r, i) => [i + 1, r.company_name, r.business_no, r.representative, r.dm_sent ? '발송' : '미발송', r.dm_sent_at,
-      r.decision || '미정', r.decided_at]),
+      r.decision || '미정', r.decided_at, r.memo]),
   });
 }
 function syncSalesSelection(){
@@ -1579,6 +1589,45 @@ function syncSalesSelection(){
   const picks = [...document.querySelectorAll('#salesGrid .sales-pick')];
   const all = document.getElementById('salesAll');
   if(all){ all.checked = picks.length > 0 && picks.every(cb => cb.checked); all.indeterminate = !all.checked && picks.some(cb => cb.checked); }
+}
+// 메모 레이어 팝업: 입력된 메모를 보고, 입력·수정·삭제(내용을 비우고 저장)
+function openSalesMemo(key){
+  const r = salesState.items.find(i => salesKey(i) === key);
+  if(!r) return;
+  const modal = openModal({
+    title:'메모', size:'modal-lg',
+    bodyHtml:`${kvGrid([
+        {label:'기업명', value:r.company_name}, {label:'사업자번호', value:r.business_no},
+        {label:'대표자', value:r.representative || '-'}, {label:'마지막 수정', value:r.memo_updated_at ? fmtDateTime(r.memo_updated_at) : '-'},
+      ])}
+      <div class="form-group content-inner-gap-top">
+        <label class="form-label" for="salesMemoText">메모 내용</label>
+        <textarea class="form-control memo-textarea" id="salesMemoText" maxlength="2000" placeholder="통화 내용, 다음 연락 일정 등을 적어 주세요." aria-describedby="salesMemoCount">${esc(r.memo || '')}</textarea>
+        <p class="form-hint memo-count" id="salesMemoCount"></p>
+      </div>`,
+    actions:[
+      {label:'저장', className:'btn-critical-primary', onClick: async (m, btn) => {
+        const text = m.root.querySelector('#salesMemoText').value;
+        btn.disabled = true; btn.textContent = '저장 중…';
+        try{
+          await api(`/api/sales/${r.project_id}/${encodeURIComponent(r.business_no)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({memo:text})});
+          salesState.items = await api(withProject('/api/sales'));
+          renderSales();
+          showToast('success', text.trim() ? '메모를 저장했습니다.' : '메모를 삭제했습니다.');
+          m.close();
+        }catch(e){
+          showToast('danger', `메모를 저장하지 못했습니다. ${e.message}`);
+          btn.disabled = false; btn.textContent = '저장';
+        }
+      }},
+      {label:'닫기', className:'btn-secondary'},
+    ],
+  });
+  const ta = modal.root.querySelector('#salesMemoText');
+  const count = () => { modal.root.querySelector('#salesMemoCount').textContent = `${ta.value.length.toLocaleString('ko-KR')} / 2,000자 · 내용을 모두 지우고 저장하면 메모가 삭제됩니다.`; };
+  ta.addEventListener('input', count);
+  count();
+  setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 50);
 }
 async function saveSales(keys, changes, control, bulk = false){
   if(!keys.length) return;

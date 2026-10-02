@@ -67,3 +67,15 @@ def test_status_is_per_project_and_removed_with_membership(client):
     client.post(f"/api/projects/{a}/companies", json={"business_nos": ["111-11-11111"]})
     row = next(r for r in client.get("/api/sales", params={"project_id": a}).json() if r["business_no"] == "111-11-11111")
     assert row["decision"] is None  # 명단에서 빠질 때 영업 기록도 삭제(cascade)
+
+
+def test_memo_save_edit_and_clear(client):
+    pid = _project(client)
+    res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"memo": "  대표 통화 완료, 10월 말 재연락  "})
+    assert res.json()["memo"] == "대표 통화 완료, 10월 말 재연락" and res.json()["memo_updated_at"]
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"dm_sent": True})  # 다른 항목을 바꿔도 메모 유지
+    row = next(r for r in client.get("/api/sales", params={"project_id": pid}).json() if r["business_no"] == "111-11-11111")
+    assert row["memo"] == "대표 통화 완료, 10월 말 재연락" and row["dm_sent"] is True
+    res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"memo": "   "})
+    assert res.json()["memo"] is None and res.json()["memo_updated_at"] is None  # 빈 메모 = 삭제
+    assert client.patch(f"/api/sales/{pid}/111-11-11111", json={"memo": "가" * 2001}).status_code == 422

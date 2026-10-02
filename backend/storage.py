@@ -80,10 +80,17 @@ def _get_conn() -> sqlite3.Connection:
             decision TEXT CHECK (decision IN ('승인', '거절')),
             decided_at TEXT,
             updated_at TEXT NOT NULL,
+            memo TEXT,
+            memo_updated_at TEXT,
             PRIMARY KEY (project_id, business_no),
             FOREIGN KEY (project_id, business_no) REFERENCES project_companies (project_id, business_no) ON DELETE CASCADE
         )
     """)
+    # 메모 열 추가(2026-10-02) 전에 만들어진 로컬 DB 보정
+    sales_cols = {r[1] for r in conn.execute("PRAGMA table_info(sales_activities)")}
+    for col in ("memo", "memo_updated_at"):
+        if col not in sales_cols:
+            conn.execute(f"ALTER TABLE sales_activities ADD COLUMN {col} TEXT")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS companies (
             business_no TEXT PRIMARY KEY,
@@ -442,14 +449,15 @@ SALES_DECISIONS = ("승인", "거절")
 def list_sales(project_id: int | None = None) -> list[dict]:
     """프로젝트 참여 명단 전체 + 영업 현황. project_id가 없으면 모든 프로젝트."""
     rows, _ = _run(
-        "SELECT pc.project_id, p.name, pc.business_no, s.dm_sent, s.dm_sent_at, s.decision, s.decided_at, s.updated_at "
+        "SELECT pc.project_id, p.name, pc.business_no, s.dm_sent, s.dm_sent_at, s.decision, s.decided_at, s.updated_at, "
+        "s.memo, s.memo_updated_at "
         "FROM project_companies pc JOIN projects p ON p.id = pc.project_id "
         "LEFT JOIN sales_activities s ON s.project_id = pc.project_id AND s.business_no = pc.business_no"
         + (" WHERE pc.project_id = %s" if project_id else "") + " ORDER BY p.created_at DESC, pc.business_no",
         (project_id,) if project_id else (), fetch="all")
     companies = {c.business_no: c for c in list_companies(project_id)}
     out = []
-    for pid, pname, bn, dm_sent, dm_sent_at, decision, decided_at, updated_at in rows:
+    for pid, pname, bn, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at in rows:
         c = companies.get(bn)
         if c is None:
             continue
@@ -459,6 +467,7 @@ def list_sales(project_id: int | None = None) -> list[dict]:
             "industry_name": c.industry_name, "credit_grade": c.credit_grade,
             "dm_sent": bool(dm_sent), "dm_sent_at": _iso(dm_sent_at), "decision": decision,
             "decided_at": _iso(decided_at), "updated_at": _iso(updated_at),
+            "memo": memo, "memo_updated_at": _iso(memo_updated_at),
         })
     return out
 
@@ -469,10 +478,11 @@ def is_project_member(project_id: int, business_no: str) -> bool:
 
 
 def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
-    """changes: dm_sent(bool) · decision('승인'|'거절'|None) 중 바꿀 것만. 발송일·처리일은 바뀔 때 오늘로 기록."""
-    row, _ = _run("SELECT dm_sent, dm_sent_at, decision, decided_at FROM sales_activities WHERE project_id = %s AND business_no = %s",
-                  (project_id, business_no), fetch="one")
-    dm_sent, dm_sent_at, decision, decided_at = (bool(row[0]), _iso(row[1]), row[2], _iso(row[3])) if row else (False, None, None, None)
+    """changes: dm_sent(bool) · decision('승인'|'거절'|None) · memo(str|None) 중 바꿀 것만. 발송일·처리일·메모 수정 일시는 바뀔 때 기록."""
+    row, _ = _run("SELECT dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at FROM sales_activities "
+                  "WHERE project_id = %s AND business_no = %s", (project_id, business_no), fetch="one")
+    dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at = (
+        (bool(row[0]), _iso(row[1]), row[2], _iso(row[3]), row[4], _iso(row[5])) if row else (False, None, None, None, None, None))
     today = date.today().isoformat()
     if "dm_sent" in changes and bool(changes["dm_sent"]) != dm_sent:
         dm_sent = bool(changes["dm_sent"])
@@ -481,13 +491,17 @@ def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
         decision = changes["decision"]
         decided_at = today if decision else None
     now = datetime.now(timezone.utc).isoformat()
-    _run("INSERT INTO sales_activities (project_id, business_no, dm_sent, dm_sent_at, decision, decided_at, updated_at) "
-         "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (project_id, business_no) DO UPDATE SET "
+    if "memo" in changes:
+        new_memo = (changes["memo"] or "").strip() or None  # 빈 메모는 삭제
+        if new_memo != memo:
+            memo, memo_updated_at = new_memo, (now if new_memo else None)
+    _run("INSERT INTO sales_activities (project_id, business_no, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at) "
+         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (project_id, business_no) DO UPDATE SET "
          "dm_sent = excluded.dm_sent, dm_sent_at = excluded.dm_sent_at, decision = excluded.decision, "
-         "decided_at = excluded.decided_at, updated_at = excluded.updated_at",
-         (project_id, business_no, dm_sent if _pg_url() else int(dm_sent), dm_sent_at, decision, decided_at, now))
+         "decided_at = excluded.decided_at, updated_at = excluded.updated_at, memo = excluded.memo, memo_updated_at = excluded.memo_updated_at",
+         (project_id, business_no, dm_sent if _pg_url() else int(dm_sent), dm_sent_at, decision, decided_at, now, memo, memo_updated_at))
     return {"project_id": project_id, "business_no": business_no, "dm_sent": dm_sent, "dm_sent_at": dm_sent_at,
-            "decision": decision, "decided_at": decided_at, "updated_at": now}
+            "decision": decision, "decided_at": decided_at, "updated_at": now, "memo": memo, "memo_updated_at": memo_updated_at}
 
 
 def source_pdf_path(business_no: str) -> str:
