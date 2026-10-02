@@ -257,3 +257,21 @@ def test_dashboard_revenue_bands(client):
     storage.save_company(_sample_company(business_no="111-11-11111", company_name="C사", income_summary={}))
     bands = {b["label"]: b["count"] for b in client.get("/api/dashboard/summary").json()["by_revenue_band"]}
     assert bands["50~100억"] == 1 and bands["10억 미만"] == 1 and bands["매출 정보 없음"] == 1 and sum(bands.values()) == 3
+
+
+def test_export_chart_table_to_excel(client):
+    import io
+    from openpyxl import load_workbook
+    body = {"title": "매출액 구간별 분포", "subtitle": "전체 프로젝트", "columns": ["매출액 구간", "기업 수(개)", "비율(%)"],
+            "rows": [["10~30억", 4, 6.2], ["합계", 65, 100]]}
+    res = client.post("/api/export/table", json=body)
+    assert res.status_code == 200
+    assert "attachment" in res.headers["content-disposition"]
+    ws = load_workbook(io.BytesIO(res.content)).active
+    assert ws["A1"].value == "매출액 구간별 분포"
+    assert [c.value for c in ws[4]] == ["매출액 구간", "기업 수(개)", "비율(%)"]
+    assert [c.value for c in ws[5]] == ["10~30억", 4, 6.2]  # 숫자는 숫자 셀로
+
+
+def test_export_chart_table_rejects_empty_columns(client):
+    assert client.post("/api/export/table", json={"title": "x", "columns": [], "rows": []}).status_code == 422

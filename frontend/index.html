@@ -71,9 +71,9 @@ a:hover, a:focus-visible{color:var(--primary-hover); text-decoration:underline;}
   border-radius:var(--radius-md); cursor:pointer; color:var(--text-main); font-size:14px; font-weight:600; white-space:nowrap; text-align:left;
   transition:background var(--transition-fast), color var(--transition-fast);}
 .nav-link:hover{background:#f8fafc; color:var(--primary-blue);}
-a.nav-link{text-decoration:none;}
-a.nav-link:hover, a.nav-link:focus-visible{text-decoration:none;}
-.nav-item.active > .nav-link{color:var(--primary-blue); font-weight:700; background:#f1f5f9;}
+a.nav-link, a.nav-link:visited{color:var(--text-main); text-decoration:none;}
+a.nav-link:hover, a.nav-link:focus-visible{color:var(--primary-blue); text-decoration:none;}
+.nav-item.active > .nav-link, .nav-item.active > a.nav-link:visited{color:var(--primary-blue); font-weight:700; background:#f1f5f9;}
 .nav-link .nav-count{margin-left:auto;}
 body.sidebar-collapsed .nav-link .nav-count{display:none;}
 .nav-icon{width:20px; height:20px; display:flex;}
@@ -81,8 +81,6 @@ body.sidebar-collapsed .nav-link .nav-count{display:none;}
 .nav-icon.tone-blue{color:var(--primary-blue);} .nav-icon.tone-info{color:var(--info-blue);}
 .nav-icon.tone-green{color:var(--point-green);} .nav-icon.tone-orange{color:var(--point-orange);}
 .nav-text{flex:1; overflow:hidden; text-overflow:ellipsis;}
-  color:var(--text-muted); font-size:14px; font-weight:400; white-space:nowrap; text-decoration:none;
-  transition:background var(--transition-fast), color var(--transition-fast);}
 .nav-count{margin-left:auto; min-width:22px; height:22px; padding:0 7px; border-radius:var(--radius-full); display:inline-flex; align-items:center; justify-content:center;
   font-size:13px; font-weight:400; color:var(--text-danger); background:#fef2f2; border:1px solid #fecaca; font-variant-numeric:tabular-nums;}
 body.sidebar-collapsed .sidebar-nav{padding:16px 8px;}
@@ -132,6 +130,7 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 .card-title{font-size:16px; font-weight:700; line-height:1.4; color:var(--text-title);}
 .card-meta{font-size:13px; color:var(--text-muted); font-weight:400;}
 .subsection-title{font-size:15px; font-weight:700; color:var(--text-title); line-height:1.4;}
+.subsection-title .card-meta{margin-left:6px;}
 .card-grid{display:grid; gap:var(--content-object-gap);}
 .card-grid.cols-2{grid-template-columns:repeat(2, minmax(0, 1fr));}
 .card-body-text{font-size:13px; line-height:1.7; color:var(--text-main); white-space:pre-wrap; word-break:keep-all;}
@@ -164,6 +163,8 @@ select.form-control, .filter-select, .select-per-page{appearance:none; padding-r
 .form-label{font-size:13px; color:var(--text-main);}
 .required{color:var(--point-red); margin-left:2px;}
 .form-hint{font-size:13px; color:var(--text-muted);}
+.form-hint.is-warning{display:flex; align-items:center; gap:6px; color:var(--text-warning);}
+.form-hint.is-warning svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2;}
 .form-error{display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; color:var(--text-danger);}
 .form-error svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2;}
 
@@ -333,29 +334,25 @@ a.todo-card:visited{color:var(--text-main);}
 .kpi-delta.up{color:var(--text-success);} .kpi-delta.down{color:var(--text-danger);}
 
 /* ===== 차트 (2.5) ===== */
-.bar-chart{display:flex; flex-direction:column; gap:12px;}
-.bar-row{display:grid; grid-template-columns:150px minmax(0, 1fr) 96px; align-items:center; gap:12px;}
-.bar-label{font-size:13px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.bar-track{display:block; height:12px; background:#f1f5f9; border-radius:var(--radius-full); overflow:hidden;}
-.bar-fill{display:block; height:100%; border-radius:var(--radius-full); transition:width .6s ease;}
-/* 세로 막대 차트 (매출액 구간): 카드 높이를 채우고 막대는 아래에서 위로 */
+/* 세로 막대 차트: 막대는 아래에서 위로, 위에 수치·비율, 아래에 항목명 */
 .col-chart{display:flex; align-items:stretch; gap:16px; height:260px; padding-top:4px;}
 .col-item{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:6px; border-radius:var(--radius-sm);}
-.col-value{font-size:14px; font-weight:700; color:var(--text-title); display:flex; flex-direction:column; align-items:center; line-height:1.3;}
-.col-value small{font-size:12px; font-weight:400; color:var(--text-muted);}
-.col-track{flex:1; width:100%; max-width:72px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border-color, #e2e8f0);}
+.col-value{font-size:14px; font-weight:400; color:var(--text-main); font-variant-numeric:tabular-nums; display:flex; flex-direction:column; align-items:center; line-height:1.3;}
+.col-value small{font-size:13px; font-weight:400; color:var(--text-muted);}
+.col-track{flex:1; width:100%; max-width:72px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border-card);}
 .col-fill{display:block; width:100%; min-height:2px; border-radius:6px 6px 0 0;}
-.col-label{font-size:13px; line-height:1.3; height:2.6em; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-align:center; word-break:keep-all; color:var(--text-body, #475569); max-width:100%;}
+.col-label{font-size:13px; line-height:1.3; height:2.6em; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-align:center; word-break:keep-all; color:var(--text-muted); max-width:100%;}
 .col-item.is-link{cursor:pointer;}
 .col-item.is-link:hover .col-label{color:var(--primary-blue); text-decoration:underline;}
 .col-item.is-link:hover .col-fill{filter:brightness(1.08);}
-.bar-row.is-link{cursor:pointer; border-radius:var(--radius-sm);}
-.bar-row.is-link:hover .bar-label{color:var(--primary-blue); text-decoration:underline;}
-.bar-row.is-link:hover .bar-fill{filter:brightness(1.08);}
-.bar-value{font-size:13px; color:var(--text-main); text-align:right; font-variant-numeric:tabular-nums;}
 .fill-blue{background:#1976d2;} .fill-sky{background:#38bdf8;} .fill-cyan{background:#0284c7;} .fill-green{background:#00b894;}
 .fill-emerald{background:#10b981;} .fill-teal{background:#2dd4bf;} .fill-orange{background:#ff7a00;} .fill-amber{background:#f59e0b;}
 .fill-red{background:#ef4444;} .fill-gray{background:#cbd5e1;}
+.chart-table{margin-top:20px; padding-top:16px; border-top:1px solid var(--border-light);}
+.chart-table-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;}
+.chart-table-title{font-size:14px; font-weight:700; color:var(--text-title);}
+.chart-table .data-table tbody th{font-weight:400; background:#f8fafc; white-space:nowrap;}
+.chart-table .data-table :is(td, th).is-total{background:#f8fafc;}
 .chart-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--text-muted); margin-bottom:12px;}
 .chart-legend span{display:inline-flex; align-items:center; gap:6px;}
 .legend-dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
@@ -510,7 +507,7 @@ body.modal-open{overflow:hidden;}
           <div id="gradeChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
         <div class="app-card">
-          <div class="app-card-header"><h2 class="card-title">매출액 구간별 분포</h2><span class="card-meta">최근 결산연도 매출액 기준 · 막대를 누르면 해당 기업 목록</span></div>
+          <div class="app-card-header"><h2 class="card-title">매출액 구간별 분포</h2><span class="card-meta">최근 결산연도 매출액 기준 · 단위: 개</span></div>
           <div id="revenueChart"><div class="empty-text">불러오는 중…</div></div>
         </div>
       </div>
@@ -1316,18 +1313,6 @@ function renderDashKpis(s){
     </a>`;
   }).join('');
 }
-function barChartHtml(rows, ariaLabel, legend){
-  const max = Math.max(...rows.map(r => Math.abs(r.value || 0)), 1);
-  const described = rows.map(r => `${r.label} ${fmtNum(r.value)}`).join(', ');
-  return `${legend ? `<div class="chart-legend">${legend}</div>` : ''}
-    <div class="bar-chart" role="img" aria-label="${esc(`${ariaLabel}: ${described}`)}">
-    ${rows.map(r => `<div class="bar-row">
-      <span class="bar-label" title="${esc(r.label)}">${esc(r.label)}</span>
-      <span class="bar-track"><span class="bar-fill ${r.value < 0 ? 'fill-red' : r.fill}" style="width:${(Math.abs(r.value || 0) / max * 100).toFixed(1)}%"></span></span>
-      <span class="bar-value">${fmtNum(r.value)}${r.unit ? ` ${esc(r.unit)}` : ''}</span>
-    </div>`).join('')}
-  </div>`;
-}
 function renderIndustryChart(byIndustry){
   const el = document.getElementById('industryChart');
   const entries = Object.entries(byIndustry || {}).sort((a, b) => b[1] - a[1]);
@@ -1335,10 +1320,13 @@ function renderIndustryChart(byIndustry){
   const top = entries.slice(0, 6);
   const rest = entries.slice(6).reduce((sum, [, n]) => sum + n, 0);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
-  const pct = n => `${(n / total * 100).toFixed(0)}%`;
+  const pct = n => `${pct1(n, total).toFixed(1)}%`;
   const rows = top.map(([name, n]) => ({label:name, value:n, fill:'fill-blue', suffix:'개', unit:pct(n)}));
   if(rest) rows.push({label:'기타', value:rest, fill:'fill-gray', suffix:'개', unit:pct(rest)});
-  el.innerHTML = columnChartHtml(rows, '업종별 등록 기업 수');
+  el.innerHTML = columnChartHtml(rows, '업종별 등록 기업 수') + chartDataTable('industry', '업종별 등록 현황',
+    [{label:'업종'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
+    [...rows.map(r => [r.label, r.value, pct1(r.value, total)]), ['합계', total, 100]],
+    {total:true, transpose:true, subtitle:`${dashScope()} · 상위 6개 업종 외는 기타`});
 }
 // 신용등급 분포: 실제 등급(10단계 이상)을 우량 순 세로 막대로. 막대 색은 등급 구간(A~BBB/BB/B/CCC 이하).
 function renderGradeChart(grades, total){
@@ -1346,21 +1334,25 @@ function renderGradeChart(grades, total){
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
   const bandFill = {'A~BBB':'fill-green', 'BB':'fill-blue', 'B':'fill-orange', 'CCC 이하':'fill-red'};
   const rows = Object.entries(grades || {}).map(([g, n]) => ({
-    label: g === '미평가' ? '미평가' : g.toUpperCase(), value:n, suffix:'개', unit:`${(n / total * 100).toFixed(0)}%`,
+    label: g === '미평가' ? '미평가' : g.toUpperCase(), value:n, suffix:'개', unit:`${pct1(n, total).toFixed(1)}%`,
     fill: g === '미평가' ? 'fill-gray' : (bandFill[gradeBand(g)] || 'fill-gray'),
   }));
   const legend = [['A~BBB', 'fill-green'], ['BB', 'fill-blue'], ['B', 'fill-orange'], ['CCC 이하', 'fill-red']]
     .map(([k, f]) => `<span><i class="legend-dot ${f}"></i>${k}</span>`).join('');
-  el.innerHTML = columnChartHtml(rows, `신용등급별 기업 수 (전체 ${total}개)`, legend);
+  el.innerHTML = columnChartHtml(rows, `신용등급별 기업 수 (전체 ${total}개)`, legend) + chartDataTable('grade', '신용등급 분포',
+    [{label:'신용등급'}, {label:'등급 구간'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
+    [...Object.entries(grades || {}).map(([g, n]) => [g === '미평가' ? '미평가' : g.toUpperCase(), g === '미평가' ? '-' : gradeBand(g), n, pct1(n, total)]),
+     ['합계', '', total, 100]],
+    {total:true, transpose:true, subtitle:`${dashScope()} · 우량 등급 순`});
 }
 // 세로 막대(가로로 나란히). rows {label, value, fill, suffix, unit} — 위에 값(+suffix)과 보조값(unit), 아래에 구간 이름.
 function columnChartHtml(rows, ariaLabel, legend){
-  const max = Math.max(...rows.map(r => r.value || 0), 1);
+  const max = Math.max(...rows.map(r => Math.abs(r.value || 0)), 1);
   const described = rows.map(r => `${r.label} ${fmtNum(r.value)}`).join(', ');
   return `${legend ? `<div class="chart-legend">${legend}</div>` : ''}<div class="col-chart" role="img" aria-label="${esc(`${ariaLabel}: ${described}`)}">
     ${rows.map(r => `<div class="col-item">
       <span class="col-value">${fmtNum(r.value)}${r.suffix ? esc(r.suffix) : ''}${r.unit ? `<small>${esc(r.unit)}</small>` : ''}</span>
-      <span class="col-track"><span class="col-fill ${r.fill}" style="height:${((r.value || 0) / max * 100).toFixed(1)}%"></span></span>
+      <span class="col-track"><span class="col-fill ${r.value < 0 ? 'fill-red' : r.fill}" style="height:${(Math.abs(r.value || 0) / max * 100).toFixed(1)}%"></span></span>
       <span class="col-label" title="${esc(r.label)}">${esc(r.label).replace('~', '~<wbr>').replace(' ', '<wbr> ')}</span>
     </div>`).join('')}
   </div>`;
@@ -1370,9 +1362,14 @@ function renderRevenueChart(bands, total){
   const el = document.getElementById('revenueChart');
   if(!total){ el.innerHTML = '<div class="empty-text">등록된 기업이 없습니다.</div>'; return; }
   const rows = bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => ({
-    label:b.label, value:b.count, suffix:'개', unit:`${(b.count / total * 100).toFixed(0)}%`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
+    label:b.label, value:b.count, suffix:'개', unit:`${pct1(b.count, total).toFixed(1)}%`, fill: b.label === '매출 정보 없음' ? 'fill-gray' : 'fill-blue',
   }));
-  el.innerHTML = columnChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`);
+  const range = b => b.label === '매출 정보 없음' ? '-'
+    : [b.min != null ? `${fmtNum(b.min)} 이상` : '', b.max != null ? `${fmtNum(b.max)} 미만` : ''].filter(Boolean).join(' ~ ');
+  el.innerHTML = columnChartHtml(rows, `매출액 구간별 기업 수 (전체 ${total}개)`) + chartDataTable('revenue', '매출액 구간별 분포',
+    [{label:'매출액 구간'}, {label:'매출액 범위(백만원)'}, {label:'기업 수(개)'}, {label:'비율(%)', decimals:1}],
+    [...bands.filter(b => b.count || b.label !== '매출 정보 없음').map(b => [b.label, range(b), b.count, pct1(b.count, total)]), ['합계', '', total, 100]],
+    {total:true, transpose:true, subtitle:`${dashScope()} · 최근 결산연도 매출액 기준`});
   el.querySelectorAll('.col-item').forEach((row, i) => {
     const band = bands.filter(b => b.count || b.label !== '매출 정보 없음')[i];
     if(!band || band.label === '매출 정보 없음' || !band.count) return;
@@ -1923,6 +1920,52 @@ function fmtDecimal(n){
   if(typeof n === 'string') return /^CR\d$/.test(n) ? `<span class="badge-tag">${esc(n)}</span>` : esc(n);
   return Number.isInteger(n) ? n.toLocaleString('ko-KR') : n.toLocaleString('ko-KR', {maximumFractionDigits:2});
 }
+// 그래프 밑 데이터 표 + 엑셀 다운로드 (규칙: 모든 그래프 밑에는 그 내용을 담은 표와 엑셀 다운로드가 있어야 한다).
+// id: 그래프별 고정 키, columns: [{label}], rows: 원값 배열(숫자는 숫자 그대로 → 엑셀에서도 숫자 셀).
+// opts.transpose: 항목(첫 열 값)을 가로 열로 — 세로 막대 그래프처럼 항목이 왼쪽→오른쪽으로 놓인다.
+// opts.total: 마지막 항목이 합계(합계 칸은 옅은 배경, 굵기는 400 — 가이드 5.3), opts.fileTitle/subtitle: 엑셀 제목·부제.
+const CHART_EXPORTS = new Map();
+function chartDataTable(id, title, columns, rows, opts = {}){
+  let heads = columns.map(c => c.label), body = rows;
+  const decimalsOf = (ri, ci) => (opts.transpose ? columns[ri + 1] : columns[ci])?.decimals;
+  if(opts.transpose){
+    heads = [columns[0].label, ...rows.map(r => r[0])];
+    body = columns.slice(1).map((c, i) => [c.label, ...rows.map(r => r[i + 1])]);
+  }
+  CHART_EXPORTS.set(id, {title: opts.fileTitle || title, subtitle: opts.subtitle || null, columns: heads.map(String), rows: body});
+  const cell = (v, d) => v == null || v === '' ? '-' : typeof v !== 'number' ? esc(v)
+    : d ? v.toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d}) : fmtNum(v);
+  const isTotal = (ri, ci) => opts.total && (opts.transpose ? ci === heads.length - 1 : ri === body.length - 1);
+  return `<div class="chart-table">
+    <div class="chart-table-head"><h3 class="chart-table-title">${esc(title)} 데이터</h3>
+      <button type="button" class="btn-secondary" data-chart-export="${esc(id)}">${ICONS.excel}엑셀 다운로드</button></div>
+    <div class="table-scroll-wrapper"><table class="data-table" aria-label="${esc(title)} 데이터">
+      <thead><tr>${heads.map((h, ci) => `<th scope="col"${isTotal(-1, ci) ? ' class="is-total"' : ''}>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${body.map((r, ri) => `<tr>${r.map((v, ci) => ci === 0 && opts.transpose
+        ? `<th scope="row">${cell(v)}</th>`
+        : `<td${isTotal(ri, ci) ? ' class="is-total"' : ''}>${cell(v, decimalsOf(ri, ci))}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+const pct1 = (n, total) => total ? Math.round(n / total * 1000) / 10 : 0;
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-chart-export]');
+  if(!btn) return;
+  const data = CHART_EXPORTS.get(btn.dataset.chartExport);
+  if(!data) return;
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/export/table', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    if(!res.ok) throw new Error(`엑셀 파일을 만들지 못했습니다. (${res.status})`);
+    const blob = await res.blob();
+    const encoded = (res.headers.get('Content-Disposition') || '').split("''")[1];
+    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download: encoded ? decodeURIComponent(encoded) : `${data.title}.xlsx`});
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }catch(err){ showToast('danger', err.message); }
+  finally{ btn.disabled = false; }
+});
+function dashScope(){ return currentProject() ? `프로젝트: ${currentProject().name}` : '전체 프로젝트'; }
 function simpleTable(ariaLabel, headers, rows, wrapCols = []){
   if(!rows.length) return '<div class="empty-text">조회된 데이터가 없습니다.</div>';
   return `<div class="table-scroll-wrapper"><table class="data-table" aria-label="${esc(ariaLabel)}">
@@ -1967,7 +2010,7 @@ function diagnosisDetailHtml(c){
     ...years.map(y => fmtDecimal(i.history?.[y])),
   ]));
   const base = details[keys[0]].base_date;
-  return `<h3 class="subsection-title">지표별 상세 (기준일자 ${esc(fmtPlain(base))})</h3>` +
+  return `<h3 class="subsection-title">지표별 상세 <span class="card-meta">기준일자 ${esc(fmtPlain(base))}</span></h3>` +
     simpleTable('재무진단 지표별 상세', ['구분', '지표', '업종평균', '전년대비', '조회기업', ...years], rows);
 }
 function renderDetail(c, from){
@@ -2024,7 +2067,12 @@ function renderDetail(c, from){
     if(isNum(op[y])) trendRows.push({label:`${y} 영업이익`, value:op[y], fill:'fill-green'});
   });
   sections.push(card('연도별 매출 · 영업이익 추이', trendRows.length
-    ? barChartHtml(trendRows, '연도별 매출액과 영업이익', '<span><i class="legend-dot fill-blue"></i>매출액</span><span><i class="legend-dot fill-green"></i>영업이익</span><span><i class="legend-dot fill-red"></i>적자</span>')
+    ? columnChartHtml(trendRows, '연도별 매출액과 영업이익', '<span><i class="legend-dot fill-blue"></i>매출액</span><span><i class="legend-dot fill-green"></i>영업이익</span>'
+        + (trendRows.some(r => r.value < 0) ? '<span><i class="legend-dot fill-red"></i>적자</span>' : ''))
+      + chartDataTable('detail-trend', '연도별 매출 · 영업이익',
+        [{label:'연도'}, {label:'매출액(백만원)'}, {label:'영업이익(백만원)'}],
+        years.map(y => [y, isNum(revenue[y]) ? revenue[y] : null, isNum(op[y]) ? op[y] : null]),
+        {transpose:true, fileTitle:`${c.company_name} 연도별 매출·영업이익`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
     : '<div class="empty-text">매출 · 이익 데이터가 없습니다.</div>', '단위: 백만원'));
 
   const peer = c.peer_comparison || {};
@@ -2040,8 +2088,12 @@ function renderDetail(c, from){
   const rankRow = r => [`${esc(r.rank)}위`, r.business_no === c.business_no ? `${esc(r.company_name)} <span class="badge-info">조회기업</span>` : esc(r.company_name),
     fmtNum(r.revenue), val(r.settlement_month), val(r.business_no), val(r.representative)];
   const rankHeaders = ['순위', '기업명', '매출액(백만원)', '결산월', '사업자번호', '대표자명'];
-  let peerBody = peerRows.length ? barChartHtml(peerRows, '동종업계 매출액 비교') : '<div class="empty-text">동종업계 비교 데이터가 없습니다.</div>';
-  if(c.industry_rank_list?.length) peerBody += `<h3 class="subsection-title">업계순위 (조회기업 전후)</h3>` + simpleTable('업계순위', rankHeaders, c.industry_rank_list.map(rankRow));
+  let peerBody = peerRows.length
+    ? columnChartHtml(peerRows, '동종업계 매출액 비교') + chartDataTable('detail-peer', '동종업계 매출액 비교',
+        [{label:'구분'}, {label:'매출액(백만원)'}], peerRows.map(r => [r.label, r.value]),
+        {transpose:true, fileTitle:`${c.company_name} 동종업계 매출액 비교`, subtitle:`${c.company_name} (${c.business_no}) · 단위: 백만원`})
+    : '<div class="empty-text">동종업계 비교 데이터가 없습니다.</div>';
+  if(c.industry_rank_list?.length) peerBody += `<h3 class="subsection-title">업계순위</h3>` + simpleTable('업계순위', rankHeaders, c.industry_rank_list.map(rankRow));
   if(c.industry_top5?.length) peerBody += `<h3 class="subsection-title">동종업계 매출액 상위 5개사</h3>` + simpleTable('동종업계 상위 5개사', rankHeaders, c.industry_top5.map(rankRow));
   const baseYear = c.industry_base_year || c.peer_base_year;
   sections.push(card('업종 내 매출 위치', peerBody, (baseYear ? `기준년도 ${baseYear} · ` : '') + rankText));
@@ -2426,18 +2478,22 @@ async function deletePdfs(businessNos){
     showToast('danger', `삭제하지 못했습니다. ${e.message}`);
   }
 }
+// 카드 안 경고 문구: 화면 상단 안내 박스와 겹치지 않도록 박스 대신 아이콘 + 경고색(#c2410c) 한 줄
+function warningHint(text){
+  return `<p class="form-hint is-warning" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.warning}</svg>${esc(text)}</p>`;
+}
 function renderUploadTarget(){
   const el = document.getElementById('uploadTargetCard');
   const project = currentProject();
   if(!projects.length){
     el.innerHTML = `<div class="app-card-header"><h2 class="card-title">등록 대상 프로젝트</h2></div>` +
-      noticeBox('warning', '등록된 프로젝트가 없습니다.', '기업 PDF는 프로젝트 단위로 등록합니다. 프로젝트 목록에서 먼저 프로젝트를 등록해 주세요.', null) +
+      warningHint('등록된 프로젝트가 없습니다. 프로젝트 목록에서 먼저 프로젝트를 등록해 주세요.') +
       `<div class="table-bottom-actions"><a class="btn-primary" href="#/projects">프로젝트 목록으로 이동</a></div>`;
   }else{
     el.innerHTML = `<div class="app-card-header"><h2 class="card-title">등록 대상 프로젝트</h2>${project ? `<span class="card-meta">참여 기업 ${project.company_count}개사</span>` : ''}</div>
       <div class="filter-row"><label class="filter-label w-80" for="uploadProjectSelect">프로젝트</label><select class="filter-select w-wide" id="uploadProjectSelect"></select></div>
       ${project ? `<p class="form-hint">업로드한 기업은 '${esc(project.name)}' 프로젝트의 참여 기업으로 등록됩니다. 이미 분석된 기업이면 최신 PDF로 갱신됩니다.</p>`
-        : noticeBox('warning', null, '업로드할 프로젝트를 선택해 주세요. 프로젝트를 선택해야 PDF를 등록할 수 있습니다.', null)}`;
+        : warningHint('업로드할 프로젝트를 선택해 주세요. 프로젝트를 선택해야 PDF를 등록할 수 있습니다.')}`;
     renderProjectSelect();
     document.getElementById('uploadProjectSelect').addEventListener('change', e => setCurrentProject(e.target.value, false) || renderUploadTarget());
   }

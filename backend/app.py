@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth_middleware import BasicAuthMiddleware
-from .routers import category_list, companies, mailing, pdfs, projects, upload, validation
+from .routers import category_list, companies, export, mailing, pdfs, projects, upload, validation
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 FRONTEND_INDEX = FRONTEND_DIR / "index.html"
@@ -23,6 +23,7 @@ app.include_router(mailing.router)
 app.include_router(category_list.router)
 app.include_router(projects.router)
 app.include_router(pdfs.router)
+app.include_router(export.router)
 
 
 @app.get("/")
