@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from . import object_storage
@@ -295,7 +295,20 @@ def list_companies(project_id: int | None = None) -> list[Company]:
 # ---------------------------------------------------------------------------
 # 프로젝트 (지원사업 등): 기업 PDF는 프로젝트 단위로 등록한다. 기업과 다대다.
 # ---------------------------------------------------------------------------
-_PROJECT_FIELDS = ("name", "description", "region", "start_date", "end_date", "status")
+# 지역·상태는 입력받지 않는다(사용자 결정 2026-10-02). 상태는 지원기간으로 매번 계산하며, DB의 region·status 열은
+# 다른 프로그램과의 호환을 위해 남겨 두기만 한다.
+_PROJECT_FIELDS = ("name", "description", "start_date", "end_date")
+
+
+def project_status(start_date, end_date, today: date | None = None) -> str:
+    """지원기간 기준 상태: 시작 전 '준비', 기간 중 '진행중', 종료일 다음 날부터 '종료'. 날짜가 없는 쪽은 열린 기간으로 본다."""
+    today = today or date.today()
+    start, end = (str(d)[:10] if d else None for d in (start_date, end_date))
+    if start and today.isoformat() < start:
+        return "준비"
+    if end and today.isoformat() > end:
+        return "종료"
+    return "진행중"
 
 
 def _run(sql: str, params: tuple = (), *, fetch: str | None = None):
@@ -321,17 +334,18 @@ def _iso(value) -> str | None:
 
 
 _PROJECT_SELECT = """
-    SELECT p.id, p.name, p.description, p.region, p.start_date, p.end_date, p.status, p.created_at,
+    SELECT p.id, p.name, p.description, p.start_date, p.end_date, p.created_at,
            (SELECT COUNT(*) FROM project_companies pc WHERE pc.project_id = p.id) AS company_count
     FROM projects p
 """
 
 
 def _project_row(row) -> dict:
-    keys = ("id", "name", "description", "region", "start_date", "end_date", "status", "created_at", "company_count")
+    keys = ("id", "name", "description", "start_date", "end_date", "created_at", "company_count")
     out = dict(zip(keys, row))
     for k in ("start_date", "end_date", "created_at"):
         out[k] = _iso(out[k])
+    out["status"] = project_status(out["start_date"], out["end_date"])
     return out
 
 
@@ -353,8 +367,8 @@ def project_name_exists(name: str, exclude_id: int | None = None) -> bool:
 def create_project(data: dict) -> dict:
     values = tuple(data.get(k) for k in _PROJECT_FIELDS) + (datetime.now(timezone.utc).isoformat(),)
     row, _ = _run(
-        "INSERT INTO projects (name, description, region, start_date, end_date, status, created_at) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id", values, fetch="one")
+        "INSERT INTO projects (name, description, start_date, end_date, created_at) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING id", values, fetch="one")
     return get_project(row[0])
 
 
@@ -400,9 +414,9 @@ def project_names_by_company() -> dict[str, list[str]]:
 
 
 def projects_of_company(business_no: str) -> list[dict]:
-    rows, _ = _run("SELECT p.id, p.name, p.status FROM projects p JOIN project_companies pc ON pc.project_id = p.id "
+    rows, _ = _run("SELECT p.id, p.name, p.start_date, p.end_date FROM projects p JOIN project_companies pc ON pc.project_id = p.id "
                    "WHERE pc.business_no = %s ORDER BY p.created_at DESC", (business_no,), fetch="all")
-    return [{"id": r[0], "name": r[1], "status": r[2]} for r in rows]
+    return [{"id": r[0], "name": r[1], "status": project_status(_iso(r[2]), _iso(r[3]))} for r in rows]
 
 
 def source_pdf_path(business_no: str) -> str:

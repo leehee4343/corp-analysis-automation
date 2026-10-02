@@ -2272,7 +2272,6 @@ function initProjects(){
     ariaLabel:'프로젝트 목록', storageKey:'projects', frozen:'name', emptyText:'등록된 프로젝트가 없습니다. 프로젝트 등록 버튼으로 시작해 주세요.',
     columns:[
       {key:'name', label:'프로젝트명', render:p => `<a href="#/companies" data-select-project="${p.id}">${esc(p.name)}</a>${p.id === currentProjectId ? ' <span class="badge-info">선택됨</span>' : ''}`},
-      {key:'region', label:'지역', render:p => val(p.region)},
       {key:'period', label:'지원기간', render:p => esc(projectPeriod(p))},
       {key:'status', label:'상태', render:p => `<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
       {key:'company_count', label:'참여 기업', render:p => `${p.company_count.toLocaleString('ko-KR')}개사`},
@@ -2303,21 +2302,19 @@ async function loadProjectsView(){
 }
 function openProjectForm(project){
   const editing = !!project;
-  const p = project || {status:'진행중'};
+  const p = project || {};
   const modal = openModal({
     title: editing ? '프로젝트 수정' : '프로젝트 등록', size:'modal-lg',
     bodyHtml:`<div class="form-section">
       <div class="form-group col-full"><label class="form-label" for="pfName">프로젝트명<span class="required" aria-hidden="true">*</span></label>
         <input class="form-control" id="pfName" maxlength="100" value="${esc(p.name || '')}" placeholder="예) 2026년 하반기 충북 스마트팜 지원사업" aria-required="true" aria-describedby="pfError"></div>
-      <div class="form-group"><label class="form-label" for="pfRegion">지역</label><input class="form-control" id="pfRegion" maxlength="100" value="${esc(p.region || '')}" placeholder="예) 충북"></div>
-      <div class="form-group"><label class="form-label" for="pfStatus">상태</label>
-        <select class="form-control" id="pfStatus">${['준비', '진행중', '종료'].map(st => `<option ${st === p.status ? 'selected' : ''}>${st}</option>`).join('')}</select></div>
       <div class="form-group col-full"><span class="form-label" id="pfPeriodLabel">지원기간</span>
         <div class="form-date-range" role="group" aria-labelledby="pfPeriodLabel">
           <input class="form-control" type="date" id="pfStart" value="${esc((p.start_date || '').slice(0, 10))}" aria-label="시작일">
           <span aria-hidden="true">~</span>
           <input class="form-control" type="date" id="pfEnd" value="${esc((p.end_date || '').slice(0, 10))}" aria-label="종료일">
-        </div></div>
+        </div>
+        <p class="form-hint">상태는 지원기간으로 자동 판단합니다. 시작일 전은 준비, 기간 중은 진행중, 종료일이 지나면 종료입니다.</p></div>
       <div class="form-group col-full"><label class="form-label" for="pfDesc">설명</label><textarea class="form-control" id="pfDesc" maxlength="2000" placeholder="지원 대상·조건 등">${esc(p.description || '')}</textarea></div>
       <p class="form-error col-full" id="pfError" hidden><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.danger}</svg><span></span></p>
     </div>`,
@@ -2325,7 +2322,7 @@ function openProjectForm(project){
       {label: editing ? '저장' : '등록', className:'btn-critical-primary', onClick: async (m, btn) => {
         const q = id => m.root.querySelector(id);
         const err = (msg, focusEl) => { q('#pfError').hidden = false; q('#pfError span').textContent = msg; if(focusEl){ focusEl.setAttribute('aria-invalid', 'true'); focusEl.focus(); } };
-        const body = {name:q('#pfName').value.trim(), region:q('#pfRegion').value.trim(), status:q('#pfStatus').value,
+        const body = {name:q('#pfName').value.trim(),
           start_date:q('#pfStart').value || null, end_date:q('#pfEnd').value || null, description:q('#pfDesc').value.trim()};
         if(!body.name) return err('프로젝트명을 입력해 주세요.', q('#pfName'));
         if(body.start_date && body.end_date && body.start_date > body.end_date) return err('종료일은 시작일보다 빠를 수 없습니다.', q('#pfEnd'));
@@ -2554,7 +2551,7 @@ function renderDashProjectInfo(){
   el.innerHTML = card(p.name, kvGrid([
     {label:'상태', html:`<span class="${PROJECT_STATUS_BADGE[p.status] || 'badge-tag'}">${esc(p.status)}</span>`},
     {label:'참여 기업', value:`${p.company_count.toLocaleString('ko-KR')}개사`},
-    {label:'지역', value:p.region || '-'}, {label:'지원기간', value:projectPeriod(p)},
+    {label:'지원기간', value:projectPeriod(p)},
     p.description ? {label:'설명', value:p.description, wide:true} : null,
   ]), '현재 프로젝트');
 }

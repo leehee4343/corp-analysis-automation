@@ -203,23 +203,20 @@ ProjectStatus = Literal["준비", "진행중", "종료"]
 
 
 class ProjectInput(BaseModel):
-    """프로젝트 등록/수정 입력. 날짜는 YYYY-MM-DD."""
+    """프로젝트 등록/수정 입력. 날짜는 YYYY-MM-DD. 지역·상태는 받지 않는다(상태는 지원기간으로 자동 계산)."""
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=2000)
-    region: str | None = Field(default=None, max_length=100)
     start_date: str | None = None
     end_date: str | None = None
-    status: ProjectStatus | None = None
 
 
 class Project(BaseModel):
     id: int
     name: str
     description: str | None = None
-    region: str | None = None
     start_date: str | None = None
     end_date: str | None = None
-    status: str
+    status: ProjectStatus                  # 지원기간으로 자동 계산(storage.project_status)
     created_at: str
     company_count: int = 0
 

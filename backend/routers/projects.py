@@ -32,8 +32,6 @@ def _clean(data: ProjectInput, *, creating: bool, project_id: int | None = None)
     end = values.get("end_date", (current or {}).get("end_date"))
     if start and end and str(start)[:10] > str(end)[:10]:
         raise HTTPException(status_code=422, detail="지원기간 종료일은 시작일보다 빠를 수 없습니다.")
-    if creating:
-        values.setdefault("status", "진행중")
     return values
 
 

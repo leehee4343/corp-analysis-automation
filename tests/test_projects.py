@@ -30,7 +30,7 @@ def client(tmp_path, monkeypatch):
 
 
 def _create(client, **kw):
-    body = {"name": "2026년 하반기 충북 스마트팜 지원사업", "region": "충북", "start_date": "2026-07-01", "end_date": "2026-12-31"}
+    body = {"name": "2026년 하반기 충북 스마트팜 지원사업", "start_date": "2026-07-01", "end_date": "2026-12-31"}
     body.update(kw)
     return client.post("/api/projects", json=body)
 
@@ -39,7 +39,8 @@ def test_create_and_list_project(client):
     res = _create(client)
     assert res.status_code == 201
     p = res.json()
-    assert p["name"] == "2026년 하반기 충북 스마트팜 지원사업" and p["status"] == "진행중" and p["company_count"] == 0
+    assert p["name"] == "2026년 하반기 충북 스마트팜 지원사업" and p["company_count"] == 0
+    assert p["status"] == storage.project_status("2026-07-01", "2026-12-31") and "region" not in p
     assert [x["id"] for x in client.get("/api/projects").json()] == [p["id"]]
 
 
@@ -97,9 +98,23 @@ def test_deleting_company_removes_membership(client):
 
 def test_update_project(client):
     pid = _create(client).json()["id"]
-    res = client.patch(f"/api/projects/{pid}", json={"status": "종료", "region": "충북 청주"})
-    assert res.json()["status"] == "종료" and res.json()["region"] == "충북 청주"
+    res = client.patch(f"/api/projects/{pid}", json={"start_date": "2020-01-01", "end_date": "2020-12-31", "status": "준비"})
+    assert res.json()["status"] == "종료"  # 상태는 입력값이 아니라 지원기간으로 계산
+    res = client.patch(f"/api/projects/{pid}", json={"start_date": "2999-01-01", "end_date": "2999-12-31"})
+    assert res.json()["status"] == "준비"
     assert client.patch(f"/api/projects/{pid}", json={"end_date": "2026-01-01"}).status_code == 422  # 시작일보다 빠름
+
+
+def test_project_status_follows_support_period():
+    from datetime import date
+    today = date(2026, 10, 2)
+    assert storage.project_status("2026-11-01", "2026-12-31", today) == "준비"
+    assert storage.project_status("2026-07-01", "2026-12-31", today) == "진행중"
+    assert storage.project_status("2026-07-01", "2026-10-02", today) == "진행중"  # 종료일 당일까지 진행중
+    assert storage.project_status("2026-01-01", "2026-10-01", today) == "종료"
+    assert storage.project_status(None, None, today) == "진행중"  # 기간 미입력
+    assert storage.project_status(None, "2026-09-30", today) == "종료"
+    assert storage.project_status("2026-10-03", None, today) == "준비"
 
 
 def test_upload_rejects_unknown_project(client):
