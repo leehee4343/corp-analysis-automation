@@ -71,29 +71,23 @@ a:hover, a:focus-visible{color:var(--primary-hover); text-decoration:underline;}
   border-radius:var(--radius-md); cursor:pointer; color:var(--text-main); font-size:14px; font-weight:600; white-space:nowrap; text-align:left;
   transition:background var(--transition-fast), color var(--transition-fast);}
 .nav-link:hover{background:#f8fafc; color:var(--primary-blue);}
-.nav-item.has-active > .nav-link{color:var(--primary-blue);}
+a.nav-link{text-decoration:none;}
+a.nav-link:hover, a.nav-link:focus-visible{text-decoration:none;}
+.nav-item.active > .nav-link{color:var(--primary-blue); font-weight:700; background:#f1f5f9;}
+.nav-link .nav-count{margin-left:auto;}
+body.sidebar-collapsed .nav-link .nav-count{display:none;}
 .nav-icon{width:20px; height:20px; display:flex;}
 .nav-icon svg{width:20px; height:20px;}
 .nav-icon.tone-blue{color:var(--primary-blue);} .nav-icon.tone-info{color:var(--info-blue);}
 .nav-icon.tone-green{color:var(--point-green);} .nav-icon.tone-orange{color:var(--point-orange);}
 .nav-text{flex:1; overflow:hidden; text-overflow:ellipsis;}
-.nav-arrow{width:16px; height:16px; color:var(--text-sub); transition:transform var(--transition-fast);}
-.nav-item.open > .nav-link .nav-arrow{transform:rotate(180deg);}
-.submenu{display:none; padding:2px 0 6px 18px;}
-.nav-item.open > .submenu{display:block;}
-.submenu-item a{height:38px; display:flex; align-items:center; gap:8px; padding:0 12px 0 14px; border-radius:var(--radius-md);
   color:var(--text-muted); font-size:14px; font-weight:400; white-space:nowrap; text-decoration:none;
   transition:background var(--transition-fast), color var(--transition-fast);}
-.submenu-item a::before{content:""; width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.55; flex:none;}
-.submenu-item a:hover{color:var(--primary-blue); background:#f8fafc; text-decoration:none;}
-.submenu-item.active a{color:var(--primary-blue); font-weight:700; background:#f1f5f9;}
-.submenu-item.active a::before{opacity:1;}
 .nav-count{margin-left:auto; min-width:22px; height:22px; padding:0 7px; border-radius:var(--radius-full); display:inline-flex; align-items:center; justify-content:center;
   font-size:13px; font-weight:400; color:var(--text-danger); background:#fef2f2; border:1px solid #fecaca; font-variant-numeric:tabular-nums;}
 body.sidebar-collapsed .sidebar-nav{padding:16px 8px;}
 body.sidebar-collapsed .nav-link{justify-content:center; padding:0;}
-body.sidebar-collapsed :is(.nav-text, .nav-arrow){display:none;}
-body.sidebar-collapsed .nav-item > .submenu{display:none;}
+body.sidebar-collapsed .nav-text{display:none;}
 
 /* 현재 프로젝트 선택 (사이드바 상단) */
 .project-switch{display:flex; flex-direction:column; gap:6px; padding:2px 2px 14px; margin-bottom:10px; border-bottom:1px solid var(--border-light);}
@@ -120,10 +114,8 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 .page-title{font-size:21px; font-weight:800; letter-spacing:-.5px; color:var(--text-title); line-height:1.3;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .page-title-tools{display:flex; align-items:center; gap:6px; flex:none;}
-.btn-page-manual, .btn-page-output{width:30px; height:30px; border-radius:var(--radius-full); display:inline-flex; align-items:center; justify-content:center;
+.btn-page-output{width:30px; height:30px; border-radius:var(--radius-full); display:inline-flex; align-items:center; justify-content:center;
   cursor:pointer; transition:background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);}
-.btn-page-manual{border:1px solid #fb923c; background:#fff7ed; color:#f97316; font-size:15px; font-weight:700;}
-.btn-page-manual:hover, .btn-page-manual[aria-expanded="true"]{background:#ffedd5; border-color:#f97316; color:#ea580c;}
 .btn-page-output{border:1px solid var(--border-divider); background:var(--bg-white); color:var(--text-muted);}
 .btn-page-output:hover{border-color:var(--primary-blue); color:var(--primary-blue);}
 .btn-page-output svg{width:15px; height:15px;}
@@ -131,9 +123,6 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 .breadcrumb-item{font-weight:400;}
 .breadcrumb-item.current{color:var(--primary-blue);}
 .breadcrumb-separator{color:var(--text-sub);}
-.page-manual-panel{background:var(--bg-white); border:1px solid var(--border-card); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);
-  padding:var(--content-card-padding); display:flex; flex-direction:column; gap:var(--content-inner-gap); color:var(--text-main);}
-.page-manual-panel h2{font-size:15px; font-weight:700; color:var(--text-title);}
 
 /* ===== 카드 (5.1) ===== */
 .app-card, .search-filter-card, .table-card, .kpi-card, .todo-card, .page-actions{background:var(--bg-white); border:1px solid var(--border-card);
@@ -443,7 +432,7 @@ body.modal-open{overflow:hidden;}
 @media print{
   *{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
   body{background:#fff; display:block;}
-  .top-header, .sidebar, .app-footer, .breadcrumb, .page-title-tools, .page-manual-panel, .toast-stack, .modal-backdrop,
+  .top-header, .sidebar, .app-footer, .breadcrumb, .page-title-tools, .toast-stack, .modal-backdrop,
   .filter-action-row, .table-actions, .table-pagination-row, .table-bottom-actions, .page-actions, .col-resizer, .sort-icon,
   :is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download){display:none !important;}
   .app-container{display:block;} .main-content{padding:0;}
@@ -482,7 +471,6 @@ body.modal-open{overflow:hidden;}
       <div class="page-title-left">
         <h1 class="page-title" id="pageTitle">대시보드</h1>
         <div class="page-title-tools">
-          <button type="button" class="btn-page-manual" id="btnPageManual" aria-expanded="false" aria-controls="pageManualPanel" aria-label="화면 이용 방법 열기">?</button>
           <button type="button" class="btn-page-output" data-output="print" aria-label="인쇄" title="인쇄">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>
           </button>
@@ -493,7 +481,6 @@ body.modal-open{overflow:hidden;}
       </div>
       <nav class="breadcrumb" id="breadcrumb" aria-label="현재 위치"></nav>
     </div>
-    <section class="page-manual-panel" id="pageManualPanel" hidden aria-labelledby="pageManualTitle"></section>
 
     <!-- 대시보드 -->
     <section class="view" data-view="dashboard" hidden>
@@ -806,8 +793,7 @@ function confirmModal({title, lead, text, note, confirmLabel, confirmClass = 'bt
 }
 document.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
-  if(openModals.length){ openModals[openModals.length - 1].close(); return; }
-  closeManual();
+  if(openModals.length){ openModals[openModals.length - 1].close(); }
 });
 
 /* ============================================================
@@ -1114,62 +1100,50 @@ const CATEGORIES = {
   farm_partnership: '영농조합법인',
 };
 const NAV_ICONS = {
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>',
+  sprout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9 5 4 5c0 4 3 7 8 7Z"/><path d="M12 14c0-4 3-7 8-7 0 4-3 7-8 7Z"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18.5 20a6.5 6.5 0 0 0-2.5-5"/></svg>',
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/></svg>',
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M3 21h18"/><path d="M8 7h4"/><path d="M8 11h4"/><path d="M8 15h4"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
 };
+// 왼쪽 메뉴: 계층 없이 한 단계로 모두 노출 (사용자 요청 2026-10-02). 메뉴마다 고유 아이콘.
 const MENU = [
-  {key:'project', label:'프로젝트 관리', icon:'folder', tone:'blue', items:[{route:'projects', label:'프로젝트 목록'}]},
-  {key:'dashboard', label:'대시보드', icon:'dashboard', tone:'blue', items:[{route:'dashboard', label:'대시보드'}]},
-  {key:'company', label:'기업 관리', icon:'building', tone:'info', items:[
-    {route:'companies', label:'기업 목록'}, {route:'upload', label:'PDF 업로드'}, {route:'mailing', label:'우편발송용 목록'},
-  ]},
-  {key:'category', label:'영업 대상 분류', icon:'target', tone:'green',
-    items: Object.entries(CATEGORIES).map(([k, label]) => ({route:`category/${k}`, label}))},
-  {key:'data', label:'데이터 관리', icon:'shield', tone:'orange', items:[{route:'issues', label:'데이터 검증', badge:true}]},
+  {route:'projects', label:'프로젝트 목록', icon:'folder', tone:'blue'},
+  {route:'dashboard', label:'대시보드', icon:'dashboard', tone:'blue'},
+  {route:'companies', label:'기업 목록', icon:'building', tone:'info'},
+  {route:'upload', label:'PDF 업로드', icon:'upload', tone:'info'},
+  {route:'mailing', label:'우편발송용 목록', icon:'mail', tone:'info'},
+  {route:'category/individual', label:CATEGORIES.individual, icon:'user', tone:'green'},
+  {route:'category/general_corp', label:CATEGORIES.general_corp, icon:'briefcase', tone:'green'},
+  {route:'category/agri_corp', label:CATEGORIES.agri_corp, icon:'sprout', tone:'green'},
+  {route:'category/farm_partnership', label:CATEGORIES.farm_partnership, icon:'users', tone:'green'},
+  {route:'issues', label:'데이터 검증', icon:'shield', tone:'orange', badge:true},
 ];
-function menuOf(route){ return MENU.find(g => g.items.some(i => i.route === route)); }
-function menuLabel(route){ return menuOf(route)?.items.find(i => i.route === route)?.label; }
+function menuOf(route){ return MENU.find(m => m.route === route); }
+function menuLabel(route){ return menuOf(route)?.label; }
 
 function renderSidebar(){
-  document.getElementById('navList').innerHTML = MENU.map(group => `
-    <li class="nav-item" data-group="${group.key}">
-      <button type="button" class="nav-link" aria-expanded="false" title="${esc(group.label)}">
-        <span class="nav-icon tone-${group.tone}" aria-hidden="true">${NAV_ICONS[group.icon]}</span>
-        <span class="nav-text">${esc(group.label)}</span>
-        <span class="nav-arrow" aria-hidden="true">${ICONS.chevron}</span>
-      </button>
-      <ul class="submenu">
-        ${group.items.map(item => `<li class="submenu-item" data-route="${item.route}"><a href="#/${item.route}">${esc(item.label)}${item.badge ? '<span class="nav-count" id="issueCount" hidden>0</span>' : ''}</a></li>`).join('')}
-      </ul>
+  document.getElementById('navList').innerHTML = MENU.map(m => `
+    <li class="nav-item" data-route="${m.route}">
+      <a class="nav-link" href="#/${m.route}" title="${esc(m.label)}">
+        <span class="nav-icon tone-${m.tone}" aria-hidden="true">${NAV_ICONS[m.icon]}</span>
+        <span class="nav-text">${esc(m.label)}</span>
+        ${m.badge ? '<span class="nav-count" id="issueCount" hidden>0</span>' : ''}
+      </a>
     </li>`).join('');
-  document.querySelectorAll('.nav-item > .nav-link').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = btn.parentElement;
-      if(document.body.classList.contains('sidebar-collapsed')){
-        location.hash = `#/${MENU.find(g => g.key === item.dataset.group).items[0].route}`;
-        return;
-      }
-      const open = !item.classList.contains('open');
-      item.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', String(open));
-    });
-  });
 }
 function setActiveMenu(route){
-  document.querySelectorAll('.submenu-item').forEach(li => {
+  document.querySelectorAll('.nav-item').forEach(li => {
     const active = li.dataset.route === route;
     li.classList.toggle('active', active);
     const a = li.querySelector('a');
     if(active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-  });
-  const group = menuOf(route);
-  document.querySelectorAll('.nav-item').forEach(item => {
-    const isActiveGroup = group && item.dataset.group === group.key;
-    item.classList.toggle('has-active', !!isActiveGroup);
-    if(isActiveGroup){ item.classList.add('open'); item.querySelector('.nav-link').setAttribute('aria-expanded', 'true'); }
   });
 }
 function initSidebarToggle(){
@@ -1212,10 +1186,7 @@ function resolveRoute(){
   return {view:'dashboard', menu:'dashboard', title:'대시보드'};
 }
 function renderBreadcrumb(route){
-  const group = menuOf(route.menu);
-  const crumbs = ['홈'];
-  if(group && group.label !== menuLabel(route.menu)) crumbs.push(group.label);
-  crumbs.push(menuLabel(route.menu));
+  const crumbs = ['홈', menuLabel(route.menu)];
   if(route.extraCrumb) crumbs.push(route.extraCrumb);
   document.getElementById('breadcrumb').innerHTML = crumbs.map((c, i) =>
     `${i ? '<span class="breadcrumb-separator" aria-hidden="true">&gt;</span>' : ''}<span class="breadcrumb-item${i === crumbs.length - 1 ? ' current' : ''}"${i === crumbs.length - 1 ? ' aria-current="page"' : ''}>${esc(c)}</span>`
@@ -1230,7 +1201,6 @@ let currentRoute = null;
 function handleRoute(){
   const route = resolveRoute();
   currentRoute = route;
-  closeManual();
   document.querySelectorAll('.main-content > .view').forEach(v => { v.hidden = v.dataset.view !== route.view; });
   setPageTitle(route.title);
   renderBreadcrumb(route);
@@ -1246,59 +1216,9 @@ function handleRoute(){
 }
 
 /* ============================================================
-   화면 매뉴얼 (?) · 인쇄 · PDF (4.3)
+   인쇄 · PDF (4.3)
    ============================================================ */
-const MANUALS = {
-  projects: ['기업 PDF는 프로젝트(지원사업 등) 단위로 등록합니다. 프로젝트 등록 버튼으로 새 프로젝트를 만들어 주세요.',
-    '선택 버튼(또는 프로젝트명)을 누르면 그 프로젝트가 현재 프로젝트가 되고, 대시보드·기업 목록·우편발송·데이터 검증이 모두 그 프로젝트 기준으로 바뀝니다.',
-    '프로젝트를 삭제해도 기업 분석 정보와 원본 PDF는 남습니다. 같은 기업이 여러 프로젝트에 참여할 수 있습니다.'],
-  dashboard: ['PDF 업로드 → 라벨 기반 파싱(LLM 미사용) → DB 저장 → 엑셀 보고서 생성 → 대시보드 반영 순서로 자동 처리됩니다.',
-    '상단 요약 카드를 누르면 해당 화면으로 이동합니다.', '파싱 성공률은 검증 대기 이슈가 없는 기업의 비율입니다.'],
-  list: ['검색어·업종·신용등급·매출액 조건을 고른 뒤 검색 버튼을 눌러 주세요. 검색어 입력 후 Enter로도 검색할 수 있습니다.',
-    '표 머리글을 누르면 정렬되고, 머리글을 끌어서 열 순서를, 오른쪽 경계를 끌어서 열 너비를 바꿀 수 있습니다(키보드: Alt+←/→).',
-    '엑셀 다운로드는 현재 조건에 맞는 모든 기업의 기업종합보고서를 한 파일씩 내려받습니다.'],
-  category: ['PDF로 분석된 기업을 법인형태별로 분류한 목록입니다. 개인사업자는 기업유형, 농업회사법인·영농조합법인은 기업명으로 분류하고 나머지는 일반법인입니다.',
-    '검색·정렬·엑셀 다운로드는 기업 목록과 같습니다.'],
-  mailing: ['등록된 기업의 우편번호·주소·상호명·대표자를 우편번호순으로 보여 줍니다.', '엑셀 다운로드는 페이지와 관계없이 전체 목록을 우편 발송 양식으로 내려받습니다.'],
-  upload: ['기업 PDF는 프로젝트 단위로 등록합니다. 등록 대상 프로젝트를 고른 뒤 PDF를 올려 주세요.',
-    'CRETOP · KODATA 기업종합보고서 PDF만 등록할 수 있습니다.', '같은 사업자번호로 다시 등록하면 최신 내용으로 교체되고, 조회일시가 다르면 중복 의심 이슈가 생깁니다.',
-    '처리 중 오류가 난 파일은 처리 결과에 사유가 표시됩니다.'],
-  detail: ['기업종합보고서에서 추출한 전체 정보를 보여 줍니다. 재무제표·재무비율 상세는 항목을 눌러 펼쳐 주세요.',
-    '엑셀 다운로드는 최신 데이터로 보고서를 다시 만들어 내려받습니다.', '삭제한 기업은 원본 PDF를 다시 업로드하면 복구됩니다.'],
-  issues: ['자동 파싱에서 값이 누락되었거나 형식이 의심되는 항목입니다.', '직접 수정으로 값을 고치면 해당 항목의 이슈가 해제됩니다. 재무제표 누락·중복 의심은 상세 화면에서 원본 PDF를 확인해 주세요.',
-    '신용등급은 게이지 이미지 OCR, 기업명·사업자번호는 표지와 상세 페이지 교차검증, 재무 수치는 요약 재무표 헤더를 기준으로 추출합니다.'],
-};
-function manualKey(){
-  if(!currentRoute) return 'dashboard';
-  const v = currentRoute.view;
-  if(v === 'list:companies') return 'list';
-  if(v.startsWith('list:')) return 'category';
-  return v;
-}
-function openManual(){
-  const panel = document.getElementById('pageManualPanel');
-  const btn = document.getElementById('btnPageManual');
-  panel.innerHTML = `<h2 id="pageManualTitle">${esc(currentRoute?.title || '')} 이용 방법</h2><ul class="bullet-list">${(MANUALS[manualKey()] || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
-  panel.hidden = false;
-  btn.setAttribute('aria-expanded', 'true');
-  btn.setAttribute('aria-label', '화면 이용 방법 닫기');
-}
-function closeManual(){
-  const panel = document.getElementById('pageManualPanel');
-  const btn = document.getElementById('btnPageManual');
-  if(panel.hidden) return;
-  panel.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-  btn.setAttribute('aria-label', '화면 이용 방법 열기');
-}
 function initPageTools(){
-  document.getElementById('btnPageManual').addEventListener('click', e => {
-    e.stopPropagation();
-    if(document.getElementById('pageManualPanel').hidden) openManual(); else closeManual();
-  });
-  document.addEventListener('click', e => {
-    if(!e.target.closest('#pageManualPanel, #btnPageManual')) closeManual();
-  });
   document.querySelectorAll('.btn-page-output').forEach(btn => btn.addEventListener('click', () => {
     if(btn.dataset.output === 'pdf') showToast('info', "인쇄 창의 대상에서 'PDF로 저장'을 선택해 주세요.");
     setTimeout(() => window.print(), btn.dataset.output === 'pdf' ? 300 : 0);
