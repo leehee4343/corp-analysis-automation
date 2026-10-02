@@ -100,7 +100,8 @@ def test_category_list_item_shape_matches_company_list(client):
     item = res.json()["items"][0]
     assert set(item.keys()) == {
         "business_no", "company_name", "industry_name", "credit_grade",
-        "status", "revenue_latest", "operating_profit_latest", "parsed_at",
+        "status", "fiscal_year", "revenue_latest", "operating_profit_latest",
+        "net_income_latest", "debt_ratio_latest", "parsed_at",
     }
     assert item["revenue_latest"] == 8307.0
 

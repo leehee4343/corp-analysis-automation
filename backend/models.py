@@ -9,7 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-YearlyValues = dict[str, float | None]
+# 연도별 값. 숫자 외에 "흑자전환"·"적자전환"·"CR3"(현금흐름등급)·"▲증가" 같은 원문 문자 값도 그대로 보존한다.
+YearlyValues = dict[str, float | str | None]
 
 
 class DiagnosisRatings(BaseModel):
@@ -71,11 +72,35 @@ class Company(BaseModel):
     ratio_detail: dict[str, dict[str, YearlyValues]] = Field(default_factory=dict)
     """성장성/수익성/안정성/활동성/생산성 카테고리 -> {비율명: {연도: 값}}."""
     diagnosis_commentary: str | None = None
-    personal_info: dict[str, str] = Field(default_factory=dict)
+    personal_info: dict[str, str | None] = Field(default_factory=dict)
     soft_sections: dict[str, str | None] = Field(default_factory=dict)
     """연혁/사업목적/종합의견/경영진현황/주식소유현황/주요주주현황/관계회사현황/사업장현황/
     구매처현황/판매처현황/매출구성 — 완전한 표 구조화 대신 원문 텍스트로 보존(데이터
     없으면 None)."""
+
+    # ===== 2026-10-02 확장: 연도 인식 + 미추출 영역 전부 =====
+    basic_extra: dict[str, str | None] = Field(default_factory=dict)
+    """2페이지 추가 항목: 영문기업명, 법인번호, 종업원수, 전화·팩스·이메일·홈페이지, 주채권기관, 당좌거래은행 등."""
+    my_financial_data: dict[str, YearlyValues] = Field(default_factory=dict)
+    """3페이지 MY 재무Data (백만원, 최근 2개년)."""
+    cash_flow_summary: dict[str, YearlyValues] = Field(default_factory=dict)
+    """요약현금흐름분석 (백만원) + 현금흐름등급(CR1~)."""
+    cash_flow_base_date: str | None = None
+    audit_opinions: dict[str, dict[str, str]] = Field(default_factory=dict)
+    """재무표별 {연도: 감사의견}."""
+    diagnosis_details: dict[str, dict] = Field(default_factory=dict)
+    """재무진단 5축별 {base_date, summary, indicators: [{name, industry_avg, yoy, company, history}]}."""
+    industry_rank_list: list[dict] = Field(default_factory=list)
+    """업계순위 표의 조회기업 앞뒤 기업들 [{rank, company_name, revenue, settlement_month, business_no, representative}]."""
+    industry_top5: list[dict] = Field(default_factory=list)
+    industry_base_year: str | None = None
+    peer_base_year: str | None = None
+    partners: dict[str, list[dict]] = Field(default_factory=dict)
+    """{"구매처"|"판매처": [{company_name, business_no, representative, share_pct, fiscal_year, capital, total_assets, revenue, net_income}]}"""
+    history: list[dict] = Field(default_factory=list)
+    """연혁 [{date, content}]."""
+    bid_summary: dict[str, str | None] = Field(default_factory=dict)
+    tech_info: dict[str, str | None] = Field(default_factory=dict)
 
     parsed_at: datetime
     issues: list[ValidationIssue] = Field(default_factory=list)
@@ -106,8 +131,11 @@ class CompanyListItem(BaseModel):
     industry_name: str | None = None
     credit_grade: str | None = None
     status: Literal["complete", "needs_review"]
-    revenue_latest: float | None = None
+    fiscal_year: str | None = None             # 아래 최근값들의 결산연도
+    revenue_latest: float | None = None        # 매출액(백만원)
     operating_profit_latest: float | None = None
+    net_income_latest: float | None = None     # 당기순이익(백만원)
+    debt_ratio_latest: float | None = None     # 부채비율(%)
     parsed_at: datetime
 
 

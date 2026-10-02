@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 
+from ._filters import MetricRanges
 from .. import storage
 from ..excel.generator import generate_excel
 from ..models import Company, CompanyList, CompanyUpdate, DashboardSummary
@@ -20,6 +21,7 @@ def list_companies(
     grade_band: str | None = None,
     revenue_min: float | None = None,
     revenue_max: float | None = None,
+    ranges: MetricRanges = Depends(),
     sort: str | None = None,
     order: Literal["asc", "desc"] = "desc",
     page: int = 1,
@@ -28,7 +30,7 @@ def list_companies(
     companies = storage.filter_companies(
         storage.list_companies(),
         q=q, industry=industry, grade_band_filter=grade_band,
-        revenue_min=revenue_min, revenue_max=revenue_max,
+        revenue_min=revenue_min, revenue_max=revenue_max, ranges=ranges.as_dict(),
     )
     companies = storage.sort_companies(companies, sort, order)
 

@@ -160,6 +160,20 @@ def build_company(parsed: ParsedCompany, grades: GradeResult | None = None) -> C
         diagnosis_commentary=parsed.diagnosis_commentary,
         personal_info=parsed.personal_info,
         soft_sections=parsed.soft_sections,
+        basic_extra=parsed.basic_extra,
+        my_financial_data=parsed.my_financial_data,
+        cash_flow_summary=parsed.cash_flow_summary,
+        cash_flow_base_date=parsed.cash_flow_base_date,
+        audit_opinions=parsed.audit_opinions,
+        diagnosis_details=parsed.diagnosis_details,
+        industry_rank_list=parsed.industry_rank_list,
+        industry_top5=parsed.industry_top5,
+        industry_base_year=parsed.industry_base_year,
+        peer_base_year=parsed.peer_base_year,
+        partners=parsed.partners,
+        history=parsed.history,
+        bid_summary=parsed.bid_summary,
+        tech_info=parsed.tech_info,
         parsed_at=datetime.now(timezone.utc),
         issues=issues,
     )
@@ -312,16 +326,33 @@ def update_company(business_no: str, update: CompanyUpdate) -> Company | None:
     return company
 
 
+def fiscal_year(company: Company) -> str | None:
+    """요약 손익계산서의 가장 최근 결산연도(목록·검색의 '최근값' 기준 연도)."""
+    years = [y for y in company.income_summary.get("매출액", {}) if y.isdigit()]
+    return max(years) if years else None
+
+
 def latest_value(company: Company, field: str, table: str = "income_summary") -> float | None:
+    """최근 결산연도의 숫자 값. 연도는 실제 표 연도(2022~2024 기업도 있음)를 따르고,
+    "흑자전환" 같은 문자 값이나 "연도미상" 열은 제외한다."""
     series = getattr(company, table).get(field, {})
-    if not series:
+    numeric = {y: v for y, v in series.items() if y.isdigit() and isinstance(v, (int, float))}
+    if not numeric:
         return None
-    latest_year = max(series)
-    return series[latest_year]
+    return numeric[max(numeric)]
 
 
 def latest_revenue(company: Company) -> float | None:
     return latest_value(company, "매출액")
+
+
+# 목록·검색에 쓰는 최근 지표 (상세 화면 상단 KPI와 같은 값)
+METRICS = {
+    "revenue": lambda c: latest_value(c, "매출액"),
+    "operating_profit": lambda c: latest_value(c, "영업이익"),
+    "net_income": lambda c: latest_value(c, "당기순이익"),
+    "debt_ratio": lambda c: latest_value(c, "부채비율", "ratio_summary"),
+}
 
 
 def to_list_item(company: Company) -> CompanyListItem:
@@ -333,8 +364,11 @@ def to_list_item(company: Company) -> CompanyListItem:
         industry_name=company.industry_name,
         credit_grade=company.credit_grade,
         status=company.status,
-        revenue_latest=latest_revenue(company),
-        operating_profit_latest=latest_value(company, "영업이익"),
+        fiscal_year=fiscal_year(company),
+        revenue_latest=METRICS["revenue"](company),
+        operating_profit_latest=METRICS["operating_profit"](company),
+        net_income_latest=METRICS["net_income"](company),
+        debt_ratio_latest=METRICS["debt_ratio"](company),
         parsed_at=company.parsed_at,
     )
 
@@ -347,8 +381,10 @@ def filter_companies(
     grade_band_filter: str | None = None,
     revenue_min: float | None = None,
     revenue_max: float | None = None,
+    ranges: dict[str, tuple[float | None, float | None]] | None = None,
 ) -> list[Company]:
-    """기업목록/영업 대상 분류 화면이 공통으로 쓰는 검색·필터 로직."""
+    """기업목록/영업 대상 분류 화면이 공통으로 쓰는 검색·필터 로직.
+    ranges: {지표(METRICS 키): (최소, 최대)} — 양 끝 포함. 범위를 지정한 지표 값이 없는 기업은 제외."""
     if q:
         needle = q.strip()
         companies = [c for c in companies if needle in c.company_name or needle in c.business_no]
@@ -360,6 +396,12 @@ def filter_companies(
         companies = [c for c in companies if (latest_revenue(c) or 0) >= revenue_min]
     if revenue_max is not None:
         companies = [c for c in companies if (latest_revenue(c) or 0) < revenue_max]
+    for metric, (lo, hi) in (ranges or {}).items():
+        if lo is None and hi is None:
+            continue
+        get = METRICS[metric]
+        companies = [c for c in companies if get(c) is not None
+                     and (lo is None or get(c) >= lo) and (hi is None or get(c) <= hi)]
     return companies
 
 
@@ -384,6 +426,9 @@ SORT_KEYS = {
     "industry_name": lambda c: c.industry_name,
     "revenue_latest": latest_revenue,
     "operating_profit_latest": lambda c: latest_value(c, "영업이익"),
+    "net_income_latest": lambda c: latest_value(c, "당기순이익"),
+    "debt_ratio_latest": lambda c: latest_value(c, "부채비율", "ratio_summary"),
+    "fiscal_year": fiscal_year,
     "credit_grade": lambda c: _grade_rank(c.credit_grade),
     "status": lambda c: c.status,
     "parsed_at": lambda c: c.parsed_at,

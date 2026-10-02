@@ -32,7 +32,7 @@ def test_generate_excel_creates_file_with_expected_sheets(tmp_path):
 
     wb = load_workbook(path)
     # ledger_detail/ratio_detail 시트는 데이터가 있을 때만 추가되는데, 이 샘플엔 없음
-    assert wb.sheetnames == ["요약", "재무제표", "업계비교", "신용정보・인증", "기타정보"]
+    assert wb.sheetnames == ["요약", "재무제표", "업계비교", "신용정보・인증", "기타정보", "추가정보"]
 
 
 def test_generate_excel_adds_detail_sheets_when_data_present(tmp_path):
@@ -53,7 +53,7 @@ def test_summary_sheet_contains_key_values(tmp_path):
     ws = load_workbook(path)["요약"]
     values = [cell.value for row in ws.iter_rows() for cell in row if cell.value is not None]
     assert "bb+" in values
-    assert "79개사 중 74위" in values
+    assert any(isinstance(v, str) and "74위" in v for v in values)  # 전체 업체 수는 PDF에 없어 "N개사 중"으로 표기하지 않음
 
 
 def test_financials_sheet_contains_yearly_values(tmp_path):

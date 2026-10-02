@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import fitz
 
 from . import labels as L
+from . import sections as S
 
 YEARS_3 = ("2023", "2024", "2025")
 
@@ -470,6 +471,146 @@ class ParsedCompany:
     personal_info: dict = field(default_factory=dict)
     soft_sections: dict = field(default_factory=dict)
 
+    # ===== 2026-10-02 확장: 연도 인식 + 미추출 영역 전부 =====
+    basic_extra: dict = field(default_factory=dict)
+    my_financial_data: dict = field(default_factory=dict)
+    cash_flow_summary: dict = field(default_factory=dict)
+    cash_flow_base_date: str | None = None
+    audit_opinions: dict = field(default_factory=dict)
+    diagnosis_details: dict = field(default_factory=dict)
+    industry_rank_list: list = field(default_factory=list)
+    industry_top5: list = field(default_factory=list)
+    industry_base_year: str | None = None
+    peer_base_year: str | None = None
+    partners: dict = field(default_factory=dict)
+    history: list = field(default_factory=list)
+    bid_summary: dict = field(default_factory=dict)
+    tech_info: dict = field(default_factory=dict)
+
+
+_SECTION_STOPS = {
+    "신용정보", "MY 재무Data", "기술력", "요약재무상태표", "요약손익계산서", "요약현금흐름분석", "요약재무비율",
+    "연혁", "사업목적", "종합의견", "인적사항", "경영진현황", "주요주주현황", "관계회사현황", "사업장현황",
+    "거래처현황", "구매처현황", "판매처현황", "매출구성", "업계순위", "동종업계내매출액분포", "동종업계내경영규모비교",
+    "재무진단",
+}
+
+
+def _section(lines: list[str], header: str, start: int = 0) -> tuple[int, int] | None:
+    """header 줄 위치와 다음 영역 헤더 직전까지의 끝 위치."""
+    idx = S.find_line(lines, header, start)
+    if idx is None:
+        return None
+    end = next((i for i in range(idx + 1, len(lines)) if lines[i] in _SECTION_STOPS and lines[i] != header), len(lines))
+    return idx, end
+
+
+def _basic_info_page(doc: "fitz.Document") -> int:
+    """기본정보(기업명·대표자명·주소) 페이지. 보통 2페이지지만 앞 페이지가 하나 더 있는 보고서는 3페이지."""
+    for i in range(1, min(doc.page_count, 5)):
+        lines = _page_lines(doc[i])
+        if "대표자명" in lines and "주소" in lines:
+            return i
+    return 1
+
+
+def _parse_tables(all_lines: list[str], result: "ParsedCompany", errors: list[str]) -> None:
+    """재무 표 전부를 실제 연도로 읽는다(sections.py 규칙)."""
+    # 상세 재무제표(천원) — 표마다 자기 머리글 연도 + 감사의견
+    positions = [(h, _find_ledger_header(all_lines, h)) for h in L.LEDGER_HEADERS]
+    positions = sorted([(h, i) for h, i in positions if i is not None], key=lambda x: x[1])
+    ratio_idx = None
+    if positions:
+        ratio_idx = S.find_line(all_lines, L.RATIO_DETAIL_HEADER, positions[-1][1] + 1)
+    for n, (header, idx) in enumerate(positions):
+        end = positions[n + 1][1] if n + 1 < len(positions) else (ratio_idx or len(all_lines))
+        parsed = _safe(errors, f"{header}(상세)", lambda: S.parse_ledger(all_lines, idx, end))
+        if parsed:
+            table, audit = parsed
+            if table:
+                result.ledger_detail[header] = table
+            if audit:
+                result.audit_opinions[header] = audit
+
+    # 요약표의 연도를 못 찾을 때 쓸 결산연도: 상세 재무상태표 → 결산일자 기준 3개년
+    bs_years = sorted({y for row in result.ledger_detail.get("재무상태표", {}).values() for y in row if y.isdigit()})
+    if not bs_years and result.settlement_date:
+        last = int(result.settlement_date[:4])
+        bs_years = [str(last - 2), str(last - 1), str(last)]
+
+    def summary(header):
+        sec = _section(all_lines, header)
+        return S.parse_summary(all_lines, sec[0], sec[1], bs_years) if sec else {}
+
+    result.balance_summary = _safe(errors, "요약재무상태표", lambda: summary(L.BALANCE_SUMMARY_HEADER)) or {}
+    result.income_summary = _safe(errors, "요약손익계산서", lambda: summary(L.INCOME_SUMMARY_HEADER)) or {}
+    result.ratio_summary = _safe(errors, "요약재무비율", lambda: summary(L.RATIO_SUMMARY_HEADER)) or {}
+    result.cash_flow_summary = _safe(errors, "요약현금흐름분석", lambda: summary("요약현금흐름분석")) or {}
+    sec = _section(all_lines, "요약현금흐름분석")
+    if sec:
+        result.cash_flow_base_date = next((l.split(":", 1)[1].strip() for l in all_lines[sec[0]:sec[1]]
+                                           if l.replace(" ", "").startswith("기준일자:")), None)
+
+    def my_data():
+        idx = S.find_line(all_lines, "MY 재무Data")
+        if idx is None:
+            return {}
+        end = S.find_line(all_lines, "재무상태표", idx + 1) or idx + 40
+        return S.parse_summary(all_lines, idx, end, bs_years[-2:])
+    result.my_financial_data = _safe(errors, "MY 재무Data", my_data) or {}
+
+    if ratio_idx is not None:
+        end = S.find_line(all_lines, "재무진단", ratio_idx + 1) or len(all_lines)
+        result.ratio_detail = _safe(errors, "재무비율 상세", lambda: S.parse_ratio_detail(all_lines, ratio_idx, end)) or {}
+
+
+def _parse_extended(all_lines: list[str], basic_lines: list[str], result: "ParsedCompany", errors: list[str]) -> None:
+    result.basic_extra = _safe(errors, "기본정보 추가 항목", lambda: S.parse_basic_extra(basic_lines)) or {}
+    result.diagnosis_details = _safe(errors, "재무진단 상세", lambda: S.parse_diagnosis_details(all_lines)) or {}
+
+    rank_sec = _section(all_lines, L.INDUSTRY_RANK_HEADER)
+    if rank_sec:
+        result.industry_base_year = S.base_year_after(all_lines, rank_sec[0])
+        result.industry_rank_list = _safe(errors, "업계순위 목록",
+                                          lambda: S.parse_rank_rows(all_lines, rank_sec[0], rank_sec[1])) or []
+    top_sec = _section(all_lines, "동종업계내매출액분포")
+    if top_sec:
+        result.industry_top5 = sorted(_safe(errors, "동종업계 상위 기업",
+                                            lambda: S.parse_rank_rows(all_lines, top_sec[0], top_sec[1])) or [],
+                                      key=lambda r: r["rank"])
+    peer_idx = S.find_line(all_lines, L.PEER_COMPARISON_HEADER)
+    if peer_idx is not None:
+        result.peer_base_year = S.base_year_after(all_lines, peer_idx)
+
+    for key, header in (("구매처", "구매처현황"), ("판매처", "판매처현황")):
+        sec = _section(all_lines, header)
+        if sec:
+            rows = _safe(errors, f"{header} 표", lambda: S.parse_partner_rows(all_lines, sec[0], sec[1])) or []
+            if rows:
+                result.partners[key] = rows
+    sec = _section(all_lines, "연혁")
+    if sec:
+        result.history = _safe(errors, "연혁 표", lambda: S.parse_history(all_lines, sec[0] + 1, sec[1])) or []
+    sec = _section(all_lines, "인적사항")
+    if sec:
+        personal = _safe(errors, "대표자 인적사항", lambda: S.parse_personal(all_lines, sec[0], sec[1])) or {}
+        result.personal_info = {k: v for k, v in personal.items() if k != "주요경력사항"}
+    result.bid_summary = _safe(errors, "나라장터 입찰정보", lambda: S.parse_bid_summary(all_lines)) or {}
+    result.tech_info = _safe(errors, "기술력", lambda: S.parse_tech(all_lines)) or {}
+
+    # 주요주주·관계회사·구매처·판매처 존재 여부: 상세 영역(원문/표) 기준으로 판정
+    def exists(text_key=None, rows=None):
+        if rows:
+            return f"있음 ({len([r for r in rows if r.get('business_no')])}개사)"
+        if text_key and result.soft_sections.get(text_key):
+            return "있음"
+        return "조회된 자료가 없습니다"
+    result.relationship_existence = {
+        "주요주주": exists("주요주주현황"), "관계회사": exists("관계회사현황"),
+        "주요구매처": exists(rows=result.partners.get("구매처")),
+        "주요판매처": exists(rows=result.partners.get("판매처")),
+    }
+
 
 def _safe(errors: list[str], label: str, fn):
     """섹션 하나가 실패해도 문서 전체 파싱을 중단시키지 않는다 — 실패한 섹션은
@@ -488,7 +629,9 @@ def parse_pdf(path: str) -> ParsedCompany:
         errors = result.parse_errors
 
         cover = _safe(errors, "표지 파싱", lambda: parse_cover_page(_page_lines(doc[0])) if doc.page_count > 0 else {}) or {}
-        detail = _safe(errors, "상세정보 파싱", lambda: parse_basic_info(_page_lines(doc[1])) if doc.page_count > 1 else {}) or {}
+        basic_page = _basic_info_page(doc) if doc.page_count > 1 else None
+        basic_lines = _page_lines(doc[basic_page]) if basic_page is not None else []
+        detail = _safe(errors, "상세정보 파싱", lambda: parse_basic_info(basic_lines)) or {}
 
         for key in ("company_name", "business_no", "representative"):
             cover_val, detail_val = cover.get(key), detail.get(key)
@@ -511,12 +654,9 @@ def parse_pdf(path: str) -> ParsedCompany:
         # 헤더 라벨을 검색한다. (PLAN.md Phase 2 로그 참고)
         all_lines = _safe(errors, "전체 텍스트 추출", lambda: [line for page in doc for line in _page_lines(page)]) or []
 
-        result.balance_summary = _safe(errors, "재무상태표",
-            lambda: parse_yearly_table(all_lines, L.BALANCE_SUMMARY_HEADER, L.BALANCE_SUMMARY_FIELDS)) or {}
-        result.income_summary = _safe(errors, "손익계산서",
-            lambda: parse_yearly_table(all_lines, L.INCOME_SUMMARY_HEADER, L.INCOME_SUMMARY_FIELDS)) or {}
-        result.ratio_summary = _safe(errors, "재무비율",
-            lambda: parse_yearly_table(all_lines, L.RATIO_SUMMARY_HEADER, L.RATIO_SUMMARY_FIELDS)) or {}
+        if m := L.SETTLEMENT_DATE_RE.search("\n".join(all_lines)):
+            result.settlement_date = m.group(1)
+        _parse_tables(all_lines, result, errors)
         result.industry_rank = _safe(errors, "업계순위",
             lambda: parse_industry_rank(all_lines, result.business_no or "")) or {}
         result.peer_comparison = _safe(errors, "동종업계비교",
@@ -525,16 +665,11 @@ def parse_pdf(path: str) -> ParsedCompany:
         result.credit_info = _safe(errors, "신용정보", lambda: parse_credit_info(all_lines)) or {}
         certs_ip = _safe(errors, "기업인증・산업재산권", lambda: parse_certifications_and_ip(all_lines))
         result.certifications, result.ip_rights = certs_ip if certs_ip else ({}, {})
-        result.relationship_existence = _safe(errors, "주요주주/관계회사/거래처 존재여부",
-            lambda: parse_relationship_existence(all_lines)) or {}
-        result.ledger_detail = _safe(errors, "재무제표 상세(재무상태표/손익계산서 등)",
-            lambda: parse_ledger_detail(all_lines)) or {}
-        result.ratio_detail = _safe(errors, "재무비율 상세",
-            lambda: parse_ratio_detail(all_lines)) or {}
         result.personal_info = _safe(errors, "대표자 인적사항",
             lambda: parse_personal_info(all_lines)) or {}
         result.soft_sections = _safe(errors, "연혁/경영진현황 등 기타 섹션",
             lambda: parse_soft_sections(all_lines)) or {}
+        _parse_extended(all_lines, basic_lines, result, errors)
 
         full_text = _safe(errors, "재무진단 텍스트 추출", lambda: "\n".join(page.get_text() for page in doc)) or ""
         result.diagnosis = _safe(errors, "재무진단", lambda: parse_diagnosis(full_text)) or {}

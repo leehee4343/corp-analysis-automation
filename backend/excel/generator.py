@@ -43,17 +43,37 @@ def _kv_row(ws: Worksheet, row: int, label: str, value) -> int:
     return row + 1
 
 
-def _yearly_table(ws: Worksheet, row: int, rows: dict[str, dict[str, float | None]]) -> int:
+def _years_of(rows: dict[str, dict]) -> list[str]:
+    """표의 실제 연도 열(표마다 다름: 2022~2024, 2019~2021 등). 숫자 연도 오름차순, 그 외(연도미상)는 뒤."""
+    keys = {k for values in rows.values() for k in values}
+    return sorted(k for k in keys if k.isdigit()) + sorted(k for k in keys if not k.isdigit())
+
+
+def _yearly_table(ws: Worksheet, row: int, rows: dict[str, dict[str, float | str | None]]) -> int:
+    years = _years_of(rows) or list(_YEARS)
     ws.cell(row=row, column=1, value="구분").font = _HEADER_FONT
-    for i, year in enumerate(_YEARS, start=2):
+    for i, year in enumerate(years, start=2):
         cell = ws.cell(row=row, column=i, value=year)
         cell.font = _HEADER_FONT
         cell.fill = _HEADER_FILL
     row += 1
     for label, values in rows.items():
         ws.cell(row=row, column=1, value=label).font = _LABEL_FONT
-        for i, year in enumerate(_YEARS, start=2):
+        for i, year in enumerate(years, start=2):
             ws.cell(row=row, column=i, value=values.get(year))
+        row += 1
+    return row + 1
+
+
+def _list_table(ws: Worksheet, row: int, headers: list[str], keys: list[str], items: list[dict]) -> int:
+    for i, h in enumerate(headers, start=1):
+        cell = ws.cell(row=row, column=i, value=h)
+        cell.font = _HEADER_FONT
+        cell.fill = _HEADER_FILL
+    row += 1
+    for item in items:
+        for i, k in enumerate(keys, start=1):
+            ws.cell(row=row, column=i, value=item.get(k))
         row += 1
     return row + 1
 
@@ -103,8 +123,8 @@ def _build_summary_sheet(ws: Worksheet, company: Company) -> None:
 
     row = _section_title(ws, row, "업계 비교")
     row = _kv_row(ws, row, "업계 순위", (
-        f"{company.industry_rank.sample_size}개사 중 {company.industry_rank.rank}위"
-        if company.industry_rank.rank and company.industry_rank.sample_size else "-"
+        f"매출액 {company.industry_rank.rank}위 (기준년도 {company.industry_base_year or '-'})"
+        if company.industry_rank.rank else "-"
     ))
     row = _kv_row(ws, row, "보고서 기준", (
         f"평가일자 {company.evaluation_date} · 결산일자 {company.settlement_date}"
@@ -246,6 +266,78 @@ def _build_other_info_sheet(ws: Worksheet, company: Company) -> None:
         ws.cell(row=cell_row, column=2).alignment = Alignment(wrap_text=True, vertical="top")
 
 
+def _build_extended_sheet(ws: Worksheet, company: Company) -> None:
+    """2026-10-02 확장 추출 항목: 기본정보 추가, 현금흐름·감사의견, MY 재무Data, 기술력·입찰."""
+    ws.column_dimensions["A"].width = 26
+    for col in "BCDEF":
+        ws.column_dimensions[col].width = 16
+    row = 1
+    ws.cell(row=row, column=1, value="추가 정보").font = _TITLE_FONT
+    row += 2
+    row = _section_title(ws, row, "기본정보 추가 항목", span=3)
+    for label, value in company.basic_extra.items():
+        row = _kv_row(ws, row, label, value)
+    for label, value in {**company.tech_info, **company.bid_summary}.items():
+        row = _kv_row(ws, row, label, value)
+    row += 1
+    if company.cash_flow_summary:
+        ws.cell(row=row, column=1, value=f"요약현금흐름분석 (백만원, 기준일자 {company.cash_flow_base_date or '-'})").font = _HEADER_FONT
+        row = _yearly_table(ws, row + 1, company.cash_flow_summary)
+    if company.my_financial_data:
+        ws.cell(row=row, column=1, value="MY 재무Data (백만원)").font = _HEADER_FONT
+        row = _yearly_table(ws, row + 1, company.my_financial_data)
+    if company.audit_opinions:
+        row = _section_title(ws, row, "감사의견", span=3)
+        for table, by_year in company.audit_opinions.items():
+            for year, opinion in by_year.items():
+                row = _kv_row(ws, row, f"{table} {year}", opinion)
+
+
+def _build_diagnosis_detail_sheet(ws: Worksheet, company: Company) -> None:
+    ws.column_dimensions["A"].width = 24
+    for col in "BCDEFG":
+        ws.column_dimensions[col].width = 13
+    row = 1
+    ws.cell(row=row, column=1, value="재무진단 상세").font = _TITLE_FONT
+    row += 2
+    names = {"growth": "성장성", "profitability": "수익성", "financial_structure": "재무구조",
+             "debt_repayment": "부채상환능력", "activity": "활동성"}
+    for key, detail in company.diagnosis_details.items():
+        rating = getattr(company.diagnosis, key, None) or "-"
+        row = _section_title(ws, row, f"{names.get(key, key)} — {rating} (기준일자 {detail.get('base_date') or '-'})", span=7)
+        years = sorted({y for ind in detail["indicators"] for y in ind["history"]})
+        items = [{"name": i["name"], "industry_avg": i["industry_avg"], "yoy": i["yoy"], "company": i["company"],
+                  **{f"y{y}": i["history"].get(y) for y in years}} for i in detail["indicators"]]
+        row = _list_table(ws, row, ["지표", "업종평균", "전년대비", "조회기업"] + years,
+                          ["name", "industry_avg", "yoy", "company"] + [f"y{y}" for y in years], items)
+
+
+def _build_market_sheet(ws: Worksheet, company: Company) -> None:
+    """업계순위 목록·상위 5개사, 구매처·판매처, 연혁."""
+    for col, width in zip("ABCDEFGHI", (8, 30, 14, 10, 16, 12, 12, 14, 14)):
+        ws.column_dimensions[col].width = width
+    row = 1
+    ws.cell(row=row, column=1, value="업계 · 거래처 · 연혁").font = _TITLE_FONT
+    row += 2
+    rank_keys = ["rank", "company_name", "revenue", "settlement_month", "business_no", "representative"]
+    rank_headers = ["순위", "기업명", "매출액(백만원)", "결산월", "사업자번호", "대표자명"]
+    if company.industry_rank_list:
+        row = _section_title(ws, row, f"업계순위 (기준년도 {company.industry_base_year or '-'})", span=6)
+        row = _list_table(ws, row, rank_headers, rank_keys, company.industry_rank_list)
+    if company.industry_top5:
+        row = _section_title(ws, row, "동종업계 매출액 상위 5개사", span=6)
+        row = _list_table(ws, row, rank_headers, rank_keys, company.industry_top5)
+    for kind, rows in company.partners.items():
+        row = _section_title(ws, row, f"{kind} 현황 (백만원, %)", span=9)
+        row = _list_table(ws, row,
+                          ["기업명", "사업자번호", "대표자명", "거래비중(%)", "결산년도", "자본금", "자산총계", "매출액", "순이익"],
+                          ["company_name", "business_no", "representative", "share_pct", "fiscal_year", "capital",
+                           "total_assets", "revenue", "net_income"], rows)
+    if company.history:
+        row = _section_title(ws, row, "연혁", span=2)
+        _list_table(ws, row, ["일자", "내용"], ["date", "content"], company.history)
+
+
 def generate_excel(company: Company, output_dir: Path | None = None) -> Path:
     output_dir = output_dir or OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -261,6 +353,11 @@ def generate_excel(company: Company, output_dir: Path | None = None) -> Path:
         _build_ratio_detail_sheet(wb.create_sheet("재무비율(상세)"), company.ratio_detail)
     _build_credit_info_sheet(wb.create_sheet("신용정보・인증"), company)
     _build_other_info_sheet(wb.create_sheet("기타정보"), company)
+    _build_extended_sheet(wb.create_sheet("추가정보"), company)
+    if company.diagnosis_details:
+        _build_diagnosis_detail_sheet(wb.create_sheet("재무진단(상세)"), company)
+    if company.industry_rank_list or company.partners or company.history:
+        _build_market_sheet(wb.create_sheet("업계·거래처·연혁"), company)
 
     filename = f"{_sanitize_filename(company.company_name)}_기업종합보고서.xlsx"
     path = output_dir / filename

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ._filters import MetricRanges
 from .. import category_list, storage
 from ..models import CategoryList
 
@@ -25,6 +26,7 @@ def list_category(
     grade_band: str | None = None,
     revenue_min: float | None = None,
     revenue_max: float | None = None,
+    ranges: MetricRanges = Depends(),
     sort: str | None = None,
     order: Literal["asc", "desc"] = "desc",
     page: int = 1,
@@ -36,7 +38,7 @@ def list_category(
     companies = storage.filter_companies(
         companies,
         q=q, industry=industry, grade_band_filter=grade_band,
-        revenue_min=revenue_min, revenue_max=revenue_max,
+        revenue_min=revenue_min, revenue_max=revenue_max, ranges=ranges.as_dict(),
     )
     companies = storage.sort_companies(companies, sort, order)
 
