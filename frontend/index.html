@@ -308,6 +308,8 @@ th[aria-sort="descending"] .sort-icon{color:var(--primary-blue);} th[aria-sort="
   border-radius:var(--radius-md); overflow:hidden;}
 .kv-row{display:grid; grid-template-columns:140px minmax(0, 1fr); background:var(--bg-white); min-height:48px;}
 .kv-row.wide{grid-column:1 / -1;}
+.kv-grid.label-w-190 .kv-row{grid-template-columns:190px minmax(0, 1fr);}
+.kv-grid.label-w-240 .kv-row{grid-template-columns:240px minmax(0, 1fr);}
 .kv-row dt{display:flex; align-items:center; padding:10px 14px; background:#f8fafc; color:var(--text-main); font-weight:400; white-space:nowrap;}
 .kv-row dd{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; color:var(--text-main); min-width:0;
   font-variant-numeric:tabular-nums; word-break:break-all;}
@@ -324,6 +326,13 @@ a.todo-card:visited{color:var(--text-main);}
 .todo-unit{font-size:13px; font-weight:400; color:var(--text-muted); margin-left:3px;}
 .todo-sub{font-size:13px; color:var(--text-muted);}
 .todo-card.has-value{border-color:#90caf9;}
+/* 요약 카드 아이콘 (5.10): 오른쪽 위 40px 원, 연한 톤 배경 + 20px 선형 아이콘 */
+:is(.todo-card, .kpi-card).has-icon{position:relative; padding-right:76px;}
+.summary-icon{position:absolute; top:20px; right:20px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+.summary-icon svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.summary-icon.tone-blue{background:#e8f1fd; color:#1976d2;} .summary-icon.tone-info{background:#e0f2fe; color:#0284c7;}
+.summary-icon.tone-green{background:#e0f7f1; color:#00b894;} .summary-icon.tone-orange{background:#fff1e0; color:#ff7a00;}
+.summary-icon.tone-red{background:#fef2f2; color:#ef4444;}
 .todo-card.is-empty .todo-label, .todo-card.is-empty .todo-count{color:var(--text-sub);}
 .todo-card.is-alert{border-color:#fecaca;}
 .todo-card.is-alert .todo-count{color:var(--text-danger);}
@@ -1297,18 +1306,33 @@ async function loadDashboard(){
     showToast('danger', `대시보드를 불러오지 못했습니다. ${e.message}`);
   }
 }
+// 요약 카드 아이콘 (가이드 5.10): 카드 오른쪽 위 40px 연한 톤 원 + 20px 선형 아이콘, 의미에 맞는 톤, 한 줄 안에서 중복 금지.
+const SUMMARY_ICONS = {
+  building:'<path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h4M8 11h4M8 15h4"/><path d="M2 21h20"/>',
+  docCheck:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="m9 14 2 2 4-4"/>',
+  shieldAlert:'<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>',
+  sheet:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/>',
+  barUp:'<path d="M4 20h16"/><path d="M7 16v-4M12 16V8M17 16V5"/>',
+  trendUp:'<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  coins:'<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M15 11.5c3.4.2 6 1.5 6 3V18c0 1.7-2.7 3-6 3-2.2 0-4.1-.6-5.2-1.4"/>',
+  scale:'<path d="M12 3v18M5 21h14"/><path d="M3 7h18"/><path d="m6 7-3 7a3 3 0 0 0 6 0z"/><path d="m18 7-3 7a3 3 0 0 0 6 0z"/>',
+};
+function summaryIcon(name, tone){
+  return `<span class="summary-icon tone-${tone}" aria-hidden="true"><svg viewBox="0 0 24 24">${SUMMARY_ICONS[name]}</svg></span>`;
+}
 function renderDashKpis(s){
   const cards = [
-    {label:'등록 기업', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동'},
-    {label:'파싱 성공률', value:s.parsing_success_rate, unit:'%', href:'#/issues', title:'데이터 검증 화면으로 이동', empty:!s.total_companies},
+    {label:'등록 기업', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동', icon:'building', tone:'blue'},
+    {label:'파싱 성공률', value:s.parsing_success_rate, unit:'%', href:'#/issues', title:'데이터 검증 화면으로 이동', empty:!s.total_companies, icon:'docCheck', tone:'info'},
     {label:'검증 대기', value:s.pending_issues, unit:'건', href:'#/issues', title:'데이터 검증 화면으로 이동', alert:s.pending_issues > 0,
-      sub:s.pending_issues > 0 ? '확인이 필요한 항목이 있습니다' : '대기 중인 항목이 없습니다'},
-    {label:'엑셀 보고서', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동'},
+      sub:s.pending_issues > 0 ? '확인이 필요한 항목이 있습니다' : '대기 중인 항목이 없습니다', icon:'shieldAlert', tone:s.pending_issues > 0 ? 'red' : 'orange'},
+    {label:'엑셀 보고서', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동', icon:'sheet', tone:'green'},
   ];
   document.getElementById('dashKpis').innerHTML = cards.map(c => {
     const isEmpty = c.empty || !c.value;
     const cls = c.alert ? 'is-alert' : (isEmpty ? 'is-empty' : 'has-value');
-    return `<a class="todo-card ${cls}" href="${c.href}" title="${esc(c.title)}">
+    return `<a class="todo-card has-icon ${cls}" href="${c.href}" title="${esc(c.title)}">
+      ${summaryIcon(c.icon, c.tone)}
       <span class="todo-label">${esc(c.label)}</span>
       <span><span class="todo-count">${esc(Number(c.value).toLocaleString('ko-KR'))}</span><span class="todo-unit">${esc(c.unit)}</span></span>
       ${c.sub ? `<span class="todo-sub">${esc(c.sub)}</span>` : ''}
@@ -1890,7 +1914,10 @@ function kvGrid(rows){
     }
     return `<div class="kv-row${wide ? ' wide' : ''}"><dt>${esc(r.label)}</dt><dd${r.title ? ` title="${esc(r.title)}"` : ''}>${r.html ?? esc(r.value ?? '-')}</dd></div>`;
   }).join('');
-  return `<dl class="kv-grid">${html}</dl>`;
+  // 라벨은 줄바꿈하지 않으므로(5.3.1) 표 안 가장 긴 라벨에 맞는 최소 폭 클래스를 표 전체에 같게 적용(행마다 다르면 정렬이 깨짐)
+  const longest = Math.max(0, ...valid.map(r => String(r.label || '').length));
+  const labelCls = longest > 13 ? ' label-w-240' : longest > 9 ? ' label-w-190' : '';
+  return `<dl class="kv-grid${labelCls}">${html}</dl>`;
 }
 function yoy(series, mode){
   const years = Object.keys(series || {}).filter(y => /^\d{4}$/.test(y) && isNum(series[y])).sort();
@@ -1902,7 +1929,7 @@ function yoy(series, mode){
   if(mode === 'abs') return {latest, year, delta:latest - prev};
   return {latest, year, delta: prev === 0 ? null : (latest - prev) / Math.abs(prev) * 100};
 }
-function kpiCard(label, series, mode, higherIsWorse = false){
+function kpiCard(label, series, mode, higherIsWorse = false, icon = null, tone = 'blue'){
   const {latest, year, delta} = yoy(series, mode);
   const unit = mode === 'abs' ? '%' : '백만원';
   const value = latest == null ? '-' : (mode === 'abs' ? latest.toFixed(1) : fmtNum(latest));
@@ -1913,7 +1940,8 @@ function kpiCard(label, series, mode, higherIsWorse = false){
     const good = higherIsWorse ? !up : up;  // 부채비율처럼 증가가 나쁜 지표는 색 의미를 반대로
     deltaHtml = `<span class="kpi-delta ${good ? 'up' : 'down'}">${up ? '▲ 증가' : '▼ 감소'} 전년 대비 ${up ? '+' : ''}${delta.toFixed(1)}${suffix}</span>`;
   }
-  return `<div class="kpi-card">
+  return `<div class="kpi-card${icon ? ' has-icon' : ''}">
+    ${icon ? summaryIcon(icon, tone) : ''}
     <span class="kpi-card-title">${esc(label)}${year ? ` (${esc(year)})` : ''}</span>
     <span><span class="kpi-card-metric">${esc(value)}</span>${latest == null ? '' : `<span class="todo-unit">${unit}</span>`}</span>
     ${deltaHtml}
@@ -2063,12 +2091,12 @@ function renderDetail(c, from){
   const extra = c.basic_extra || {}, tech = c.tech_info || {};
   const extraRows = Object.entries(extra).map(([k, v]) => ({label:k, value:v ?? '-', wide:String(v || '').length > 22}));
   if(tech.기술력등급 || tech.평가기준연도) extraRows.push({label:'기술력', value:[tech.기술력등급, tech.평가기준연도 ? `평가기준연도 ${tech.평가기준연도}` : null].filter(Boolean).join(' · ')});
-  if(extraRows.length) sections.push(card('기업 기본정보 (상세)', kvGrid(extraRows)));
+  if(extraRows.length) sections.push(card('기업 기본정보 상세', kvGrid(extraRows)));
 
   const inc = c.income_summary || {}, ratio = c.ratio_summary || {};
   sections.push(`<div class="todo-grid cols-4">
-    ${kpiCard('매출액', inc['매출액'], 'rel')}${kpiCard('영업이익', inc['영업이익'], 'rel')}
-    ${kpiCard('당기순이익', inc['당기순이익'], 'rel')}${kpiCard('부채비율', ratio['부채비율'], 'abs', true)}
+    ${kpiCard('매출액', inc['매출액'], 'rel', false, 'barUp', 'blue')}${kpiCard('영업이익', inc['영업이익'], 'rel', false, 'trendUp', 'green')}
+    ${kpiCard('당기순이익', inc['당기순이익'], 'rel', false, 'coins', 'orange')}${kpiCard('부채비율', ratio['부채비율'], 'abs', true, 'scale', 'red')}
   </div>`);
 
   const d = c.diagnosis || {};
