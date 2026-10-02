@@ -38,7 +38,8 @@ personal-projects
 │      ├─ companies            기업 분석 결과 (사업자번호당 1행, data json — 표·계정 순서 보존을 위해 jsonb 아님)
 │      └─ source_pdfs          원본 PDF 메타데이터 (filename, size_bytes, storage_path)
 │      ├─ projects             프로젝트(지원사업 등) — 기업 PDF는 프로젝트 단위로 등록
-│      └─ project_companies    프로젝트 참여 기업 (다대다, 기업 삭제 시 cascade)
+│      ├─ project_companies    프로젝트 참여 기업 (다대다, 기업 삭제 시 cascade)
+│      └─ sales_activities     영업 관리: 참여 기업별 DM 발송 여부·승인/거절 (참여 명단에서 빠지면 cascade)
 └─ Storage
    └─ corp-analysis  (비공개 · PDF만 · 파일당 20MB)  ← svc-corp-analysis 계정만 접근
        └─ source-pdfs/{사업자번호}.pdf

@@ -72,6 +72,19 @@ def _get_conn() -> sqlite3.Connection:
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS sales_activities (
+            project_id INTEGER NOT NULL,
+            business_no TEXT NOT NULL,
+            dm_sent INTEGER NOT NULL DEFAULT 0,
+            dm_sent_at TEXT,
+            decision TEXT CHECK (decision IN ('승인', '거절')),
+            decided_at TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (project_id, business_no),
+            FOREIGN KEY (project_id, business_no) REFERENCES project_companies (project_id, business_no) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS companies (
             business_no TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
@@ -417,6 +430,64 @@ def projects_of_company(business_no: str) -> list[dict]:
     rows, _ = _run("SELECT p.id, p.name, p.start_date, p.end_date FROM projects p JOIN project_companies pc ON pc.project_id = p.id "
                    "WHERE pc.business_no = %s ORDER BY p.created_at DESC", (business_no,), fetch="all")
     return [{"id": r[0], "name": r[1], "status": project_status(_iso(r[2]), _iso(r[3]))} for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# 영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부 · 승인/거절 (sales_activities)
+# 같은 기업이라도 프로젝트(지원사업)마다 따로 관리한다. 행이 없으면 '미발송·미정'.
+# ---------------------------------------------------------------------------
+SALES_DECISIONS = ("승인", "거절")
+
+
+def list_sales(project_id: int | None = None) -> list[dict]:
+    """프로젝트 참여 명단 전체 + 영업 현황. project_id가 없으면 모든 프로젝트."""
+    rows, _ = _run(
+        "SELECT pc.project_id, p.name, pc.business_no, s.dm_sent, s.dm_sent_at, s.decision, s.decided_at, s.updated_at "
+        "FROM project_companies pc JOIN projects p ON p.id = pc.project_id "
+        "LEFT JOIN sales_activities s ON s.project_id = pc.project_id AND s.business_no = pc.business_no"
+        + (" WHERE pc.project_id = %s" if project_id else "") + " ORDER BY p.created_at DESC, pc.business_no",
+        (project_id,) if project_id else (), fetch="all")
+    companies = {c.business_no: c for c in list_companies(project_id)}
+    out = []
+    for pid, pname, bn, dm_sent, dm_sent_at, decision, decided_at, updated_at in rows:
+        c = companies.get(bn)
+        if c is None:
+            continue
+        out.append({
+            "project_id": pid, "project_name": pname, "business_no": bn, "company_name": c.company_name,
+            "representative": c.representative, "postal_code": c.postal_code, "address": c.address,
+            "industry_name": c.industry_name, "credit_grade": c.credit_grade,
+            "dm_sent": bool(dm_sent), "dm_sent_at": _iso(dm_sent_at), "decision": decision,
+            "decided_at": _iso(decided_at), "updated_at": _iso(updated_at),
+        })
+    return out
+
+
+def is_project_member(project_id: int, business_no: str) -> bool:
+    row, _ = _run("SELECT 1 FROM project_companies WHERE project_id = %s AND business_no = %s", (project_id, business_no), fetch="one")
+    return bool(row)
+
+
+def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
+    """changes: dm_sent(bool) · decision('승인'|'거절'|None) 중 바꿀 것만. 발송일·처리일은 바뀔 때 오늘로 기록."""
+    row, _ = _run("SELECT dm_sent, dm_sent_at, decision, decided_at FROM sales_activities WHERE project_id = %s AND business_no = %s",
+                  (project_id, business_no), fetch="one")
+    dm_sent, dm_sent_at, decision, decided_at = (bool(row[0]), _iso(row[1]), row[2], _iso(row[3])) if row else (False, None, None, None)
+    today = date.today().isoformat()
+    if "dm_sent" in changes and bool(changes["dm_sent"]) != dm_sent:
+        dm_sent = bool(changes["dm_sent"])
+        dm_sent_at = today if dm_sent else None
+    if "decision" in changes and changes["decision"] != decision:
+        decision = changes["decision"]
+        decided_at = today if decision else None
+    now = datetime.now(timezone.utc).isoformat()
+    _run("INSERT INTO sales_activities (project_id, business_no, dm_sent, dm_sent_at, decision, decided_at, updated_at) "
+         "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (project_id, business_no) DO UPDATE SET "
+         "dm_sent = excluded.dm_sent, dm_sent_at = excluded.dm_sent_at, decision = excluded.decision, "
+         "decided_at = excluded.decided_at, updated_at = excluded.updated_at",
+         (project_id, business_no, dm_sent if _pg_url() else int(dm_sent), dm_sent_at, decision, decided_at, now))
+    return {"project_id": project_id, "business_no": business_no, "dm_sent": dm_sent, "dm_sent_at": dm_sent_at,
+            "decision": decision, "decided_at": decided_at, "updated_at": now}
 
 
 def source_pdf_path(business_no: str) -> str:

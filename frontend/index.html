@@ -336,6 +336,16 @@ th[aria-sort="descending"] .sort-icon{color:var(--primary-blue);} th[aria-sort="
 /* ===== KPI · To-Do 카드 (5.10, 5.14) ===== */
 .todo-grid{display:grid; gap:var(--content-object-gap);}
 .todo-grid.cols-4{grid-template-columns:repeat(4, minmax(0, 1fr));}
+.todo-grid.cols-5{grid-template-columns:repeat(5, minmax(0, 1fr));}
+.todo-card.is-selected{border-color:var(--primary-blue); box-shadow:0 0 0 1px var(--primary-blue) inset;}
+/* 영업 관리: 선택 일괄 처리 줄, 표 안 DM 체크·결과 선택 */
+.table-bulk-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.table-bulk-label{font-size:13px; color:var(--text-muted); margin-right:4px;}
+.dm-check{display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;}
+.dm-check input{width:16px; height:16px; accent-color:var(--primary-blue); cursor:pointer;}
+.data-table select.decision-select{height:28px; width:96px; padding:0 30px 0 10px; background-position:right 8px center; border-radius:var(--radius-sm); text-align:center;}
+.decision-select.is-approved{border-color:#bbf7d0; background-color:#f0fdf4; color:var(--text-success);}
+.decision-select.is-rejected{border-color:#fecaca; background-color:#fef2f2; color:var(--text-danger);}
 .todo-card{display:flex; flex-direction:column; gap:6px; color:var(--text-main); text-decoration:none;
   transition:box-shadow var(--transition-fast), border-color var(--transition-fast);}
 a.todo-card:hover{box-shadow:var(--shadow-hover); border-color:#90caf9; text-decoration:none;}
@@ -464,6 +474,7 @@ body.modal-open{overflow:hidden;}
 @media (max-width:1100px){
   .card-grid.cols-2, .search-filter-grid{grid-template-columns:minmax(0,1fr);}
   .todo-grid.cols-4{grid-template-columns:repeat(2, minmax(0,1fr));}
+  .todo-grid.cols-5{grid-template-columns:repeat(3, minmax(0,1fr));}
 }
 @media (max-width:760px){ .kv-grid{grid-template-columns:minmax(0,1fr);} .kv-row.wide{grid-column:auto;} }
 @media (prefers-reduced-motion:reduce){ *, *::before, *::after{transition-duration:.01ms !important; animation-duration:.01ms !important;} }
@@ -648,6 +659,43 @@ body.modal-open{overflow:hidden;}
         </div>
         <div class="table-scroll-wrapper data-grid" id="issueGrid"></div>
         <div class="table-pagination-row"><nav class="pagination-controls" id="issuePagination" aria-label="표 페이지 이동"></nav></div>
+      </div>
+    </section>
+
+    <!-- 영업 관리 -->
+    <section class="view" data-view="sales" hidden>
+      <div class="todo-grid cols-5" id="salesKpis"></div>
+      <form class="search-filter-card" id="salesFilter" novalidate>
+        <div class="search-filter-grid">
+          <div class="filter-row"><label class="filter-label w-80" for="salesQ">검색어</label><input class="filter-input" id="salesQ" name="q" placeholder="기업명, 사업자번호 또는 대표자" autocomplete="off"></div>
+          <div class="filter-row"><label class="filter-label w-80" for="salesDm">DM 발송</label>
+            <select class="filter-select" id="salesDm" name="dm"><option value="">전체</option><option value="sent">발송</option><option value="unsent">미발송</option></select></div>
+          <div class="filter-row"><label class="filter-label w-80" for="salesDecision">결과</label>
+            <select class="filter-select" id="salesDecision" name="decision"><option value="">전체</option><option value="승인">승인</option><option value="거절">거절</option><option value="미정">미정</option></select></div>
+        </div>
+        <div class="filter-action-row">
+          <button type="submit" class="btn-search-main">검색</button>
+          <button type="button" class="btn-reset-main" id="salesReset">초기화</button>
+        </div>
+      </form>
+      <div class="table-card">
+        <div class="table-header-action-row">
+          <div class="grid-page-summary" id="salesSummary">1 / 1 (총 0개)</div>
+          <div class="table-actions">
+            <label class="sr-only" for="salesPerPage">페이지당 건수</label>
+            <select class="select-per-page" id="salesPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
+            <button type="button" class="btn-secondary" id="salesColumns">열 설정</button>
+            <button type="button" class="btn-secondary" data-chart-export="sales"><svg class="icon-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="m9 12 6 6"/><path d="m15 12-6 6"/></svg>엑셀 다운로드</button>
+          </div>
+        </div>
+        <div class="table-bulk-row" id="salesBulk">
+          <span class="table-bulk-label" id="salesBulkLabel">선택한 기업 0개</span>
+          <button type="button" class="btn-secondary" data-sales-bulk="dm" disabled>DM 발송 처리</button>
+          <button type="button" class="btn-secondary" data-sales-bulk="approve" disabled>승인 처리</button>
+          <button type="button" class="btn-secondary" data-sales-bulk="reject" disabled>거절 처리</button>
+        </div>
+        <div class="table-scroll-wrapper data-grid" id="salesGrid"></div>
+        <div class="table-pagination-row"><nav class="pagination-controls" id="salesPagination" aria-label="표 페이지 이동"></nav></div>
       </div>
     </section>
   </main>
@@ -1160,6 +1208,7 @@ const CATEGORIES = {
   farm_partnership: '영농조합법인',
 };
 const NAV_ICONS = {
+  handshake: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>',
   listData: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
   upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
@@ -1188,6 +1237,7 @@ const MENU = [
     {route:'category/agri_corp', label:CATEGORIES.agri_corp},
     {route:'category/farm_partnership', label:CATEGORIES.farm_partnership},
   ]},
+  {route:'sales', label:'영업 관리', icon:'handshake', tone:'orange'},
 ];
 const MENU_FLAT = MENU.flatMap(m => m.children ? m.children.map(c => ({...c, parent:m})) : [m]);
 function menuOf(route){ return MENU_FLAT.find(m => m.route === route); }
@@ -1271,6 +1321,7 @@ function resolveRoute(){
   if(head === 'upload') return {view:'upload', menu:'upload', title:'PDF 업로드'};
   if(head === 'mailing') return {view:'mailing', menu:'mailing', title:'우편발송용 목록'};
   if(head === 'issues') return {view:'issues', menu:'issues', title:'데이터 검증'};
+  if(head === 'sales') return {view:'sales', menu:'sales', title:'영업 관리'};
   if(head === 'category' && CATEGORIES[arg]) return {view:`list:${arg}`, menu:`category/${arg}`, title:CATEGORIES[arg]};
   if(head === 'company' && arg){
     const from = params.get('from');
@@ -1305,6 +1356,7 @@ function handleRoute(){
   else if(route.view.startsWith('list:')) loadListScreen(LIST_SCREENS[route.view.slice(5)]);
   else if(route.view === 'mailing') loadMailing();
   else if(route.view === 'issues') loadIssues();
+  else if(route.view === 'sales') loadSales();
   else if(route.view === 'projects') loadProjectsView();
   else if(route.view === 'upload'){ renderUploadTarget(); loadPdfList(); }
   else if(route.view === 'detail') loadDetail(route.businessNo, route.menu);
@@ -1379,11 +1431,178 @@ const SUMMARY_ICONS = {
   barUp:'<path d="M4 20h16"/><path d="M7 16v-4M12 16V8M17 16V5"/>',
   trendUp:'<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   coins:'<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M15 11.5c3.4.2 6 1.5 6 3V18c0 1.7-2.7 3-6 3-2.2 0-4.1-.6-5.2-1.4"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  checkCircle:'<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>',
+  xCircle:'<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   scale:'<path d="M12 3v18M5 21h14"/><path d="M3 7h18"/><path d="m6 7-3 7a3 3 0 0 0 6 0z"/><path d="m18 7-3 7a3 3 0 0 0 6 0z"/>',
 };
 function summaryIcon(name, tone){
   return `<span class="summary-icon tone-${tone}" aria-hidden="true"><svg viewBox="0 0 24 24">${SUMMARY_ICONS[name]}</svg></span>`;
 }
+/* ============================================================
+   영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부 · 승인/거절
+   목록은 한 번에 받아 화면에서 검색·필터·페이징(PDF 목록과 같은 방식). 같은 기업도 프로젝트마다 따로 관리.
+   ============================================================ */
+const salesState = {items:[], page:1, pageSize:10, selected:new Set(), filter:{q:'', dm:'', decision:''}};
+let salesGrid = null;
+const salesKey = r => `${r.project_id}|${r.business_no}`;
+function initSales(){
+  salesGrid = new DataGrid(document.getElementById('salesGrid'), {
+    ariaLabel:'영업 관리 목록', storageKey:'sales', frozen:'company_name', emptyText:'조회된 기업이 없습니다.',
+    columns:[
+      {key:'select', label:'선택', headerHtml:'<input type="checkbox" id="salesAll" aria-label="이 페이지 전체 선택">',
+        render:r => `<input type="checkbox" class="sales-pick" value="${esc(salesKey(r))}" ${salesState.selected.has(salesKey(r)) ? 'checked' : ''} aria-label="${esc(r.company_name)} 선택">`},
+      {key:'no', label:'No', render:(r, n) => ((salesState.page - 1) * salesState.pageSize + n + 1).toLocaleString('ko-KR')},
+      {key:'company_name', label:'기업명', render:r => `<a href="${detailHref(r.business_no, 'sales')}">${esc(r.company_name)}</a>`},
+      {key:'business_no', label:'사업자번호', render:r => esc(r.business_no)},
+      {key:'representative', label:'대표자', render:r => val(r.representative)},
+      {key:'dm', label:'DM 발송', render:r => `<label class="dm-check"><input type="checkbox" data-sales-dm="${esc(salesKey(r))}" ${r.dm_sent ? 'checked' : ''} aria-label="${esc(r.company_name)} DM 발송"><span>${r.dm_sent ? '발송' : '미발송'}</span></label>`},
+      {key:'dm_sent_at', label:'발송일', render:r => r.dm_sent_at ? fmtDate(r.dm_sent_at) : '-'},
+      {key:'decision', label:'결과', render:r => `<select class="filter-select decision-select${r.decision === '승인' ? ' is-approved' : r.decision === '거절' ? ' is-rejected' : ''}" data-sales-decision="${esc(salesKey(r))}" aria-label="${esc(r.company_name)} 승인/거절">
+        ${[['', '미정'], ['승인', '승인'], ['거절', '거절']].map(([v, l]) => `<option value="${v}" ${(r.decision || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`},
+      {key:'decided_at', label:'처리일', render:r => r.decided_at ? fmtDate(r.decided_at) : '-'},
+      {key:'credit_grade', label:'신용등급', render:r => gradeBadge(r.credit_grade)},
+      {key:'postal_code', label:'우편번호', render:r => val(r.postal_code)},
+      {key:'address', label:'주소', wrap:true, render:r => val(r.address)},
+      {key:'project_name', label:'프로젝트', render:r => esc(r.project_name)},
+    ],
+  });
+  salesGrid.attachColumnMenu(document.getElementById('salesColumns'));
+  const grid = document.getElementById('salesGrid');
+  grid.addEventListener('change', e => {
+    const t = e.target;
+    if(t.id === 'salesAll'){
+      grid.querySelectorAll('.sales-pick').forEach(cb => { cb.checked = t.checked; if(cb.checked) salesState.selected.add(cb.value); else salesState.selected.delete(cb.value); });
+      syncSalesSelection();
+    }else if(t.classList.contains('sales-pick')){
+      if(t.checked) salesState.selected.add(t.value); else salesState.selected.delete(t.value);
+      syncSalesSelection();
+    }else if(t.dataset.salesDm){
+      saveSales([t.dataset.salesDm], {dm_sent:t.checked}, t);
+    }else if(t.dataset.salesDecision){
+      saveSales([t.dataset.salesDecision], {decision:t.value || null}, t);
+    }
+  });
+  document.getElementById('salesFilter').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target.elements;
+    salesState.filter = {q:f.q.value.trim(), dm:f.dm.value, decision:f.decision.value};
+    salesState.page = 1; renderSales();
+  });
+  document.getElementById('salesReset').addEventListener('click', () => {
+    document.getElementById('salesFilter').reset();
+    salesState.filter = {q:'', dm:'', decision:''}; salesState.page = 1; renderSales();
+  });
+  document.getElementById('salesPerPage').addEventListener('change', e => { salesState.pageSize = Number(e.target.value); salesState.page = 1; renderSales(); });
+  document.querySelectorAll('[data-sales-bulk]').forEach(btn => btn.addEventListener('click', () => {
+    const changes = {dm:{dm_sent:true}, approve:{decision:'승인'}, reject:{decision:'거절'}}[btn.dataset.salesBulk];
+    saveSales([...salesState.selected], changes, btn, true);
+  }));
+  // 요약 카드를 누르면 그 조건으로 목록을 거른다
+  document.getElementById('salesKpis').addEventListener('click', e => {
+    const card = e.target.closest('[data-sales-filter]');
+    if(!card) return;
+    e.preventDefault();
+    const [dm, decision] = card.dataset.salesFilter.split('|');
+    const f = document.getElementById('salesFilter').elements;
+    f.dm.value = dm; f.decision.value = decision;
+    salesState.filter = {...salesState.filter, dm, decision}; salesState.page = 1; renderSales();
+  });
+}
+async function loadSales(){
+  if(!salesGrid) return;
+  const seq = salesState.seq = (salesState.seq || 0) + 1;
+  salesGrid.setLoading(true);
+  try{
+    const items = await api(withProject('/api/sales'));
+    if(seq !== salesState.seq) return;
+    salesState.items = items;
+    const keys = new Set(items.map(salesKey));
+    salesState.selected = new Set([...salesState.selected].filter(k => keys.has(k)));
+    renderSales();
+  }catch(e){
+    showToast('danger', `영업 관리 목록을 불러오지 못했습니다. ${e.message}`);
+  }finally{
+    if(seq === salesState.seq) salesGrid.setLoading(false);
+  }
+}
+function filteredSales(){
+  const {q, dm, decision} = salesState.filter;
+  const needle = q.replace(/\s/g, '').toLowerCase();
+  return salesState.items.filter(r =>
+    (!needle || [r.company_name, r.business_no, r.business_no.replace(/-/g, ''), r.representative || ''].some(v => v.replace(/\s/g, '').toLowerCase().includes(needle)))
+    && (!dm || (dm === 'sent') === r.dm_sent)
+    && (!decision || (decision === '미정' ? !r.decision : r.decision === decision)));
+}
+function renderSalesKpis(){
+  const items = salesState.items, total = items.length;
+  const count = fn => items.filter(fn).length;
+  const sent = count(r => r.dm_sent), approved = count(r => r.decision === '승인'), rejected = count(r => r.decision === '거절');
+  const {dm, decision} = salesState.filter;
+  const cards = [
+    {label:'대상 기업', value:total, unit:'개', icon:'building', tone:'blue', filter:'|'},
+    {label:'DM 발송', value:sent, unit:'개', icon:'mail', tone:'info', filter:'sent|', sub:`미발송 ${(total - sent).toLocaleString('ko-KR')}개`},
+    {label:'승인', value:approved, unit:'개', icon:'checkCircle', tone:'green', filter:'|승인'},
+    {label:'거절', value:rejected, unit:'개', icon:'xCircle', tone:'red', filter:'|거절'},
+    {label:'미정', value:total - approved - rejected, unit:'개', icon:'clock', tone:'orange', filter:'|미정'},
+  ];
+  document.getElementById('salesKpis').innerHTML = cards.map(c => {
+    const selected = c.filter === `${dm}|${decision}` && c.filter !== '|';
+    return `<a class="todo-card has-icon ${c.value ? 'has-value' : 'is-empty'}${selected ? ' is-selected' : ''}" href="#/sales" data-sales-filter="${c.filter}" title="${esc(c.label)} 기업만 보기" aria-pressed="${selected}">
+      ${summaryIcon(c.icon, c.tone)}
+      <span class="todo-label">${esc(c.label)}</span>
+      <span><span class="todo-count">${c.value.toLocaleString('ko-KR')}</span><span class="todo-unit">${c.unit}</span></span>
+      ${c.sub ? `<span class="todo-sub">${esc(c.sub)}</span>` : ''}
+    </a>`;
+  }).join('');
+}
+function renderSales(){
+  renderSalesKpis();
+  const items = filteredSales();
+  const {pageSize} = salesState;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  salesState.page = Math.min(salesState.page, totalPages);
+  salesGrid.setItems(items.slice((salesState.page - 1) * pageSize, salesState.page * pageSize));
+  document.getElementById('salesSummary').textContent = summaryText(items.length, salesState.page, pageSize);
+  renderPagination(document.getElementById('salesPagination'), items.length, salesState.page, pageSize, p => { salesState.page = p; renderSales(); });
+  syncSalesSelection();
+  // 엑셀 다운로드: 지금 걸러진 목록 전체(페이지와 무관)
+  const project = currentProject();
+  CHART_EXPORTS.set('sales', {
+    title: project ? `${project.name} 영업 관리` : '영업 관리', subtitle: `${project ? `프로젝트: ${project.name}` : '전체 프로젝트'} · ${items.length}개`,
+    columns:['No', '프로젝트', '기업명', '사업자번호', '대표자', '우편번호', '주소', '신용등급', 'DM 발송', '발송일', '결과', '처리일'],
+    rows: items.map((r, i) => [i + 1, r.project_name, r.company_name, r.business_no, r.representative, r.postal_code, r.address,
+      r.credit_grade ? r.credit_grade.toUpperCase() : null, r.dm_sent ? '발송' : '미발송', r.dm_sent_at, r.decision || '미정', r.decided_at]),
+  });
+}
+function syncSalesSelection(){
+  const n = salesState.selected.size;
+  document.getElementById('salesBulkLabel').textContent = `선택한 기업 ${n.toLocaleString('ko-KR')}개`;
+  document.querySelectorAll('[data-sales-bulk]').forEach(b => { b.disabled = !n; });
+  const picks = [...document.querySelectorAll('#salesGrid .sales-pick')];
+  const all = document.getElementById('salesAll');
+  if(all){ all.checked = picks.length > 0 && picks.every(cb => cb.checked); all.indeterminate = !all.checked && picks.some(cb => cb.checked); }
+}
+async function saveSales(keys, changes, control, bulk = false){
+  if(!keys.length) return;
+  const targets = keys.map(k => { const [pid, bn] = k.split('|'); return {project_id:Number(pid), business_no:bn}; });
+  control.disabled = true;
+  try{
+    if(bulk) await api('/api/sales/bulk', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({items:targets, ...changes})});
+    else await api(`/api/sales/${targets[0].project_id}/${encodeURIComponent(targets[0].business_no)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(changes)});
+    const fresh = await api(withProject('/api/sales'));
+    salesState.items = fresh;
+    if(bulk){ salesState.selected.clear(); showToast('success', `${targets.length.toLocaleString('ko-KR')}개 기업을 처리했습니다.`); }
+    renderSales();
+  }catch(e){
+    showToast('danger', `저장하지 못했습니다. ${e.message}`);
+    renderSales();  // 화면 값을 서버 값으로 되돌림
+  }finally{
+    control.disabled = false;
+  }
+}
+
 // 로그인 사용자 · 로그아웃 (로그인을 쓰는 환경에서만 표시)
 async function initSession(){
   try{
@@ -2337,7 +2556,7 @@ function setCurrentProject(id, reload = true){
   storageSet('currentProject', currentProjectId ? String(currentProjectId) : '');
   invalidateCaches();
   Object.values(LIST_SCREENS).forEach(sc => { sc.state.page = 1; });
-  mailingState.page = 1; issueState.page = 1;
+  mailingState.page = 1; issueState.page = 1; salesState.page = 1; salesState.selected.clear();
   renderProjectSelect();
   if(reload){ handleRoute(); refreshIssueCount(); }
 }
@@ -2646,6 +2865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initUpload();
   initProjects();
   initPdfList();
+  initSales();
   initSession();
   window.addEventListener('hashchange', handleRoute);
   if(!location.hash) history.replaceState(null, '', '#/dashboard');
