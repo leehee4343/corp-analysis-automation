@@ -81,6 +81,21 @@ body.sidebar-collapsed .nav-link .nav-count{display:none;}
 .nav-icon.tone-blue{color:var(--primary-blue);} .nav-icon.tone-info{color:var(--info-blue);}
 .nav-icon.tone-green{color:var(--point-green);} .nav-icon.tone-orange{color:var(--point-orange);}
 .nav-text{flex:1; overflow:hidden; text-overflow:ellipsis;}
+/* 2Depth (4.2): 아코디언 + 5px 원형 블릿(currentColor), 들여쓰기 18px, 블릿–글자 8px, 활성은 블루 700 + #f1f5f9 */
+.nav-arrow{display:flex; margin-left:auto; color:var(--text-sub); transition:transform var(--transition-fast);}
+.nav-arrow svg{width:16px; height:16px;}
+.nav-item.open > .nav-link .nav-arrow{transform:rotate(180deg);}
+.nav-item.child-active > .nav-link{color:var(--primary-blue);}
+.submenu{display:none; padding:4px 0 6px 18px;}
+.nav-item.open > .submenu{display:block;}
+.submenu-item + .submenu-item{margin-top:2px;}
+.submenu-item > a, .submenu-item > a:visited{position:relative; display:flex; align-items:center; height:38px; padding:0 12px 0 31px; border-radius:var(--radius-md);
+  color:var(--text-muted); font-size:14px; font-weight:400; white-space:nowrap; text-decoration:none; transition:background var(--transition-fast), color var(--transition-fast);}
+.submenu-item > a::before{content:""; position:absolute; left:18px; top:50%; width:5px; height:5px; margin-top:-2.5px; border-radius:50%; background:currentColor; opacity:.55;}
+.submenu-item > a:hover, .submenu-item > a:focus-visible{background:#f8fafc; color:var(--primary-blue); text-decoration:none;}
+.submenu-item.active > a, .submenu-item.active > a:visited{color:var(--primary-blue); font-weight:700; background:#f1f5f9;}
+.submenu-item.active > a::before{opacity:1;}
+body.sidebar-collapsed .submenu, body.sidebar-collapsed .nav-arrow{display:none;}
 .nav-count{margin-left:auto; min-width:22px; height:22px; padding:0 7px; border-radius:var(--radius-full); display:inline-flex; align-items:center; justify-content:center;
   font-size:13px; font-weight:400; color:var(--text-danger); background:#fef2f2; border:1px solid #fecaca; font-variant-numeric:tabular-nums;}
 body.sidebar-collapsed .sidebar-nav{padding:16px 8px;}
@@ -1145,6 +1160,7 @@ const CATEGORIES = {
   farm_partnership: '영농조합법인',
 };
 const NAV_ICONS = {
+  listData: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
   upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
@@ -1157,24 +1173,39 @@ const NAV_ICONS = {
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
 };
-// 왼쪽 메뉴: 계층 없이 한 단계로 모두 노출 (사용자 요청 2026-10-02). 메뉴마다 고유 아이콘.
+// 왼쪽 메뉴: 기본은 한 단계로 노출(사용자 요청 2026-10-02). 단 기업 데이터를 활용하는 목록 5개는
+// '기업 데이터 활용 목록' 아래 2Depth로 묶는다(사용자 요청). 2Depth는 가이드 4.2대로 아이콘 대신 5px 블릿.
 const MENU = [
   {route:'projects', label:'프로젝트 목록', icon:'folder', tone:'blue'},
   {route:'upload', label:'PDF 업로드', icon:'upload', tone:'info'},
   {route:'issues', label:'데이터 검증', icon:'shield', tone:'orange', badge:true},
   {route:'dashboard', label:'대시보드', icon:'dashboard', tone:'blue'},
   {route:'companies', label:'기업 목록', icon:'building', tone:'info'},
-  {route:'mailing', label:'우편발송용 목록', icon:'mail', tone:'info'},
-  {route:'category/individual', label:CATEGORIES.individual, icon:'user', tone:'green'},
-  {route:'category/general_corp', label:CATEGORIES.general_corp, icon:'briefcase', tone:'green'},
-  {route:'category/agri_corp', label:CATEGORIES.agri_corp, icon:'sprout', tone:'green'},
-  {route:'category/farm_partnership', label:CATEGORIES.farm_partnership, icon:'users', tone:'green'},
+  {group:'data-lists', label:'기업 데이터 활용 목록', icon:'listData', tone:'green', children:[
+    {route:'mailing', label:'우편발송용 목록'},
+    {route:'category/individual', label:CATEGORIES.individual},
+    {route:'category/general_corp', label:CATEGORIES.general_corp},
+    {route:'category/agri_corp', label:CATEGORIES.agri_corp},
+    {route:'category/farm_partnership', label:CATEGORIES.farm_partnership},
+  ]},
 ];
-function menuOf(route){ return MENU.find(m => m.route === route); }
+const MENU_FLAT = MENU.flatMap(m => m.children ? m.children.map(c => ({...c, parent:m})) : [m]);
+function menuOf(route){ return MENU_FLAT.find(m => m.route === route); }
 function menuLabel(route){ return menuOf(route)?.label; }
 
 function renderSidebar(){
-  document.getElementById('navList').innerHTML = MENU.map(m => `
+  const openGroups = new Set((storageGet('openMenuGroups') || '').split(',').filter(Boolean));
+  document.getElementById('navList').innerHTML = MENU.map(m => m.children ? `
+    <li class="nav-item has-sub${openGroups.has(m.group) ? ' open' : ''}" data-group="${m.group}">
+      <button type="button" class="nav-link" aria-expanded="${openGroups.has(m.group)}" aria-controls="submenu-${m.group}" title="${esc(m.label)}">
+        <span class="nav-icon tone-${m.tone}" aria-hidden="true">${NAV_ICONS[m.icon]}</span>
+        <span class="nav-text">${esc(m.label)}</span>
+        <span class="nav-arrow" aria-hidden="true">${ICONS.chevron}</span>
+      </button>
+      <ul class="submenu" id="submenu-${m.group}">
+        ${m.children.map(c => `<li class="submenu-item" data-route="${c.route}"><a href="#/${c.route}">${esc(c.label)}</a></li>`).join('')}
+      </ul>
+    </li>` : `
     <li class="nav-item" data-route="${m.route}">
       <a class="nav-link" href="#/${m.route}" title="${esc(m.label)}">
         <span class="nav-icon tone-${m.tone}" aria-hidden="true">${NAV_ICONS[m.icon]}</span>
@@ -1182,13 +1213,31 @@ function renderSidebar(){
         ${m.badge ? '<span class="nav-count" id="issueCount" hidden>0</span>' : ''}
       </a>
     </li>`).join('');
+  document.querySelectorAll('.nav-item.has-sub > .nav-link').forEach(btn => btn.addEventListener('click', () => {
+    const li = btn.parentElement;
+    // 접힌 사이드바(64px)에서 누르면 사이드바를 펼치고 하위 메뉴를 연다
+    if(document.body.classList.contains('sidebar-collapsed')) document.getElementById('sidebarToggle').click();
+    setMenuGroupOpen(li, !li.classList.contains('open') || document.body.classList.contains('sidebar-collapsed'));
+  }));
+}
+function setMenuGroupOpen(li, open){
+  li.classList.toggle('open', open);
+  li.querySelector(':scope > .nav-link').setAttribute('aria-expanded', String(open));
+  const groups = [...document.querySelectorAll('.nav-item.has-sub.open')].map(g => g.dataset.group);
+  storageSet('openMenuGroups', groups.join(','));
 }
 function setActiveMenu(route){
-  document.querySelectorAll('.nav-item').forEach(li => {
+  document.querySelectorAll('.nav-item[data-route], .submenu-item').forEach(li => {
     const active = li.dataset.route === route;
     li.classList.toggle('active', active);
     const a = li.querySelector('a');
     if(active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  // 현재 화면이 하위 메뉴면 그 상위 메뉴를 펼치고 상위 메뉴도 강조(4.2)
+  document.querySelectorAll('.nav-item.has-sub').forEach(g => {
+    const hasActive = !!g.querySelector('.submenu-item.active');
+    g.classList.toggle('child-active', hasActive);
+    if(hasActive && !g.classList.contains('open')) setMenuGroupOpen(g, true);
   });
 }
 function initSidebarToggle(){
@@ -1231,7 +1280,8 @@ function resolveRoute(){
   return {view:'dashboard', menu:'dashboard', title:'대시보드'};
 }
 function renderBreadcrumb(route){
-  const crumbs = ['홈', menuLabel(route.menu)];
+  const menu = menuOf(route.menu);
+  const crumbs = ['홈', ...(menu?.parent ? [menu.parent.label] : []), menu?.label];
   if(route.extraCrumb) crumbs.push(route.extraCrumb);
   document.getElementById('breadcrumb').innerHTML = crumbs.map((c, i) =>
     `${i ? '<span class="breadcrumb-separator" aria-hidden="true">&gt;</span>' : ''}<span class="breadcrumb-item${i === crumbs.length - 1 ? ' current' : ''}"${i === crumbs.length - 1 ? ' aria-current="page"' : ''}>${esc(c)}</span>`
