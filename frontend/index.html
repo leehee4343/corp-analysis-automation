@@ -695,6 +695,7 @@ body.modal-open{overflow:hidden;}
         <div class="table-bulk-row" id="salesBulk">
           <span class="table-bulk-label" id="salesBulkLabel">선택한 기업 0개</span>
           <button type="button" class="btn-secondary" data-sales-bulk="dm" disabled>DM 발송 처리</button>
+          <button type="button" class="btn-secondary" data-sales-bulk="undm" disabled>미발송 처리</button>
           <button type="button" class="btn-secondary" data-sales-bulk="approve" disabled>승인 처리</button>
           <button type="button" class="btn-secondary" data-sales-bulk="reject" disabled>거절 처리</button>
         </div>
@@ -1502,8 +1503,21 @@ function initSales(){
     salesState.filter = {q:'', dm:'', decision:''}; salesState.page = 1; renderSales();
   });
   document.getElementById('salesPerPage').addEventListener('change', e => { salesState.pageSize = Number(e.target.value); salesState.page = 1; renderSales(); });
-  document.querySelectorAll('[data-sales-bulk]').forEach(btn => btn.addEventListener('click', () => {
-    const changes = {dm:{dm_sent:true}, approve:{decision:'승인'}, reject:{decision:'거절'}}[btn.dataset.salesBulk];
+  document.querySelectorAll('[data-sales-bulk]').forEach(btn => btn.addEventListener('click', async () => {
+    const kind = btn.dataset.salesBulk;
+    const changes = {dm:{dm_sent:true}, undm:{dm_sent:false}, approve:{decision:'승인'}, reject:{decision:'거절'}}[kind];
+    if(kind === 'undm'){
+      // 발송일 기록이 지워지므로 한 번 확인한다
+      const keys = [...salesState.selected];
+      const sentCount = salesState.items.filter(r => keys.includes(salesKey(r)) && r.dm_sent).length;
+      if(!sentCount) return showToast('info', '선택한 기업 중 DM 발송 상태인 기업이 없습니다.');
+      const ok = await confirmModal({
+        title:'미발송 처리', tone:'warning', confirmLabel:'미발송 처리', confirmClass:'btn-primary',
+        lead:`선택한 기업 중 DM 발송 상태인 ${sentCount.toLocaleString('ko-KR')}개를 미발송으로 되돌리시겠습니까?`,
+        text:'발송 여부와 발송일 기록이 지워집니다.', note:'승인/거절 결과와 메모는 그대로 유지됩니다.',
+      });
+      if(!ok) return;
+    }
     saveSales([...salesState.selected], changes, btn, true);
   }));
   // 요약 카드를 누르면 그 조건으로 목록을 거른다
