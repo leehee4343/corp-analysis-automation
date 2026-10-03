@@ -2557,11 +2557,12 @@ function renderDetail(c, from){
 }
 function wireDetailActions(c, from){
   document.querySelector('#detailBody [data-action="delete"]').addEventListener('click', async () => {
+    const activity = await salesActivityOf([c.business_no]);
     const ok = await confirmModal({
-      title:'기업정보 삭제', tone:'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
+      title:'기업정보 삭제', tone: activity.companies || !activity.known ? 'danger' : 'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
       lead:`'${c.company_name}' 기업정보를 삭제하시겠습니까?`,
-      text:'저장된 분석 데이터가 삭제되며 목록·대시보드에서 사라집니다.',
-      note:'원본 PDF를 다시 업로드하면 재등록할 수 있습니다.',
+      text:'저장된 분석 데이터와 이 기업의 영업 관리 활동 정보(DM 발송·승인/거절·메모)가 모든 프로젝트에서 함께 삭제되며 되돌릴 수 없습니다.',
+      note: salesActivityNote(activity).replace('이 기업들의', '이 기업의') + ' 원본 PDF를 다시 업로드하면 기업 정보는 재등록할 수 있지만 영업 기록은 복구되지 않습니다.',
     });
     if(!ok) return;
     try{
@@ -2907,19 +2908,39 @@ function renderPdfList(){
   renderPagination(document.getElementById('pdfPagination'), items.length, pdfState.page, pageSize, p => { pdfState.page = p; renderPdfList(); });
   syncPdfSelection();
 }
+// 기업 정보를 지우면 모든 프로젝트의 영업 관리 기록(DM 발송·승인/거절·메모)도 함께 지워진다(참여 명단 FK cascade).
+// 삭제 확인창에 보여 줄 실제 기록 건수를 센다. 확인에 실패해도 삭제 경고 자체는 항상 표시한다.
+async function salesActivityOf(businessNos){
+  const keys = new Set(businessNos);
+  try{
+    const rows = (await api('/api/sales')).filter(r => keys.has(r.business_no) && (r.dm_sent || r.decision || r.memo));
+    return {companies:new Set(rows.map(r => r.business_no)).size, dm:rows.filter(r => r.dm_sent).length,
+      decisions:rows.filter(r => r.decision).length, memos:rows.filter(r => r.memo).length, known:true};
+  }catch(e){ return {companies:0, dm:0, decisions:0, memos:0, known:false}; }
+}
+function salesActivityNote(a){
+  const n = v => v.toLocaleString('ko-KR');
+  if(!a.known) return '이 기업들의 영업 관리 기록(DM 발송·승인/거절·메모)도 함께 삭제됩니다.';
+  return a.companies
+    ? `영업 관리 기록이 있는 기업 ${n(a.companies)}개 — DM 발송 ${n(a.dm)}건 · 승인/거절 ${n(a.decisions)}건 · 메모 ${n(a.memos)}건이 함께 삭제됩니다.`
+    : '현재 이 기업들의 영업 관리 기록은 없습니다.';
+}
 async function deletePdfs(businessNos){
   const targets = pdfState.items.filter(i => businessNos.includes(i.business_no));
   if(!targets.length) return;
   const here = currentProject()?.name;
   const shared = targets.filter(i => i.projects.some(n => n !== here));
+  const joined = [...new Set(targets.flatMap(i => i.projects))];
   const names = targets.slice(0, 3).map(i => i.company_name).join(', ') + (targets.length > 3 ? ` 외 ${targets.length - 3}개` : '');
+  const activity = await salesActivityOf(targets.map(i => i.business_no));
   const ok = await confirmModal({
-    title:'PDF 삭제', tone:'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
+    title:'PDF 삭제', tone: activity.companies || !activity.known ? 'danger' : 'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
     lead:`PDF ${targets.length}개와 해당 기업 정보를 삭제하시겠습니까?`,
-    text:`${names} — 원본 PDF와 기업 분석 정보가 데이터베이스에서 삭제되며 되돌릴 수 없습니다.`,
-    note: shared.length
-      ? `이 중 ${shared.length}개 기업은 다른 프로젝트(${[...new Set(shared.flatMap(i => i.projects.filter(n => n !== here)))].join(', ')})에도 참여 중이며, 그 프로젝트에서도 함께 사라집니다.`
-      : '다시 필요하면 PDF를 다시 업로드하면 됩니다.',
+    text:`${names} — 원본 PDF, 기업 분석 정보와 함께 이 기업들의 영업 관리 활동 정보(DM 발송·승인/거절·메모)도 모두 삭제되며 되돌릴 수 없습니다.`,
+    note: salesActivityNote(activity) + (here
+      ? (shared.length ? ` 이 중 ${shared.length}개 기업은 다른 프로젝트(${[...new Set(shared.flatMap(i => i.projects.filter(n => n !== here)))].join(', ')})에도 참여 중이며, 그 프로젝트의 명단·영업 기록에서도 함께 사라집니다.` : '')
+      // 전체 프로젝트 기준으로 볼 때는 '다른 프로젝트'가 아니라 참여 중인 프로젝트 전체를 알린다
+      : (joined.length ? ` 참여 중인 프로젝트(${joined.join(', ')})의 명단·영업 기록에서도 함께 사라집니다.` : '')),
   });
   if(!ok) return;
   try{
