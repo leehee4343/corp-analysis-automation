@@ -65,13 +65,6 @@ def update_project(project_id: int, data: ProjectInput):
     return storage.update_project(project_id, _clean(data, creating=False, project_id=project_id))
 
 
-@router.delete("/projects/{project_id}", status_code=204)
-def delete_project(project_id: int):
-    """프로젝트와 참여 명단만 삭제. 기업 분석 데이터·원본 PDF는 남는다."""
-    if not storage.delete_project(project_id):
-        raise HTTPException(status_code=404, detail="존재하지 않는 프로젝트입니다.")
-
-
 class PurgeConfirm(BaseModel):
     username: str = ""
     password: str = ""
@@ -86,7 +79,8 @@ def purge_preview(project_id: int):
 
 @router.post("/projects/{project_id}/purge")
 def purge_project(project_id: int, data: PurgeConfirm):
-    """프로젝트 전체 삭제. 되돌릴 수 없으므로 로그인 아이디·비밀번호를 다시 확인한다."""
+    """프로젝트 삭제(유일한 삭제 방법): 등록 기업·원본 PDF·영업 관리 기록까지 지운다. 되돌릴 수 없으므로
+    로그인 아이디·비밀번호를 다시 확인한다. 기업만 남기고 프로젝트만 지우는 API는 두지 않는다(사용자 결정 2026-10-03)."""
     project = require_project(project_id)
     if not auth.login_password():
         raise HTTPException(status_code=409, detail="비밀번호가 설정되지 않은 환경에서는 전체 삭제를 할 수 없습니다.")

@@ -81,12 +81,11 @@ def test_company_can_join_multiple_projects(client):
     assert {p["name"] for p in client.get("/api/companies/333-33-33333/projects").json()} == {"A사업", "B사업"}
 
 
-def test_delete_project_keeps_companies(client):
+def test_project_only_delete_api_removed(client):
+    """프로젝트 삭제는 기업·영업 기록까지 지우는 /purge 하나뿐 — 기업을 남기는 DELETE는 없다."""
     pid = _create(client).json()["id"]
-    client.post(f"/api/projects/{pid}/companies", json={"business_nos": ["111-11-11111"]})
-    assert client.delete(f"/api/projects/{pid}").status_code == 204
-    assert client.get(f"/api/projects/{pid}").status_code == 404
-    assert client.get("/api/companies").json()["total"] == 3
+    assert client.delete(f"/api/projects/{pid}").status_code == 405
+    assert client.get(f"/api/projects/{pid}").status_code == 200
 
 
 def test_deleting_company_removes_membership(client):
@@ -155,3 +154,12 @@ def test_purge_refused_without_password_configured(client):
     pid = _create(client).json()["id"]
     res = client.post(f"/api/projects/{pid}/purge", json={"username": "admin", "password": "1234"})
     assert res.status_code == 409 and client.get(f"/api/projects/{pid}").status_code == 200
+
+
+def test_purge_preview_ignores_empty_sales_rows(client):
+    pid = _create(client).json()["id"]
+    client.post(f"/api/projects/{pid}/companies", json={"business_nos": ["111-11-11111", "222-22-22222"]})
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"dm_sent": True})
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"dm_sent": False})  # 발송 → 미발송: 빈 행만 남음
+    client.patch(f"/api/sales/{pid}/222-22-22222", json={"memo": "통화"})
+    assert client.get(f"/api/projects/{pid}/purge-preview").json()["sales_records"] == 1

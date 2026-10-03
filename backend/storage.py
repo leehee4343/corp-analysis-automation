@@ -420,7 +420,9 @@ def _project_member_split(project_id: int) -> tuple[list[str], list[str]]:
 def project_purge_preview(project_id: int) -> dict:
     """전체 삭제 전에 경고창에 보여 줄 건수."""
     exclusive, shared = _project_member_split(project_id)
-    sales, _ = _run("SELECT COUNT(*), COALESCE(SUM(CASE WHEN dm_sent THEN 1 ELSE 0 END), 0), "
+    # 아무것도 입력되지 않은 행(미발송·미정·메모 없음)은 기록으로 세지 않는다
+    sales, _ = _run("SELECT COALESCE(SUM(CASE WHEN dm_sent OR decision IS NOT NULL OR memo IS NOT NULL THEN 1 ELSE 0 END), 0), "
+                    "COALESCE(SUM(CASE WHEN dm_sent THEN 1 ELSE 0 END), 0), "
                     "COALESCE(SUM(CASE WHEN decision IS NOT NULL THEN 1 ELSE 0 END), 0), "
                     "COALESCE(SUM(CASE WHEN memo IS NOT NULL THEN 1 ELSE 0 END), 0) "
                     "FROM sales_activities WHERE project_id = %s", (project_id,), fetch="one")
