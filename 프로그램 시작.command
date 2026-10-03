@@ -62,5 +62,14 @@ echo
 echo "Starting server. Your browser will open automatically in a moment..."
 echo "Close this window (or press Ctrl+C) to stop."
 echo
-(sleep 2 && open "$URL") &
-exec .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port $PORT
+# 개발 중 재시작(재시작 스크립트가 표시 파일을 남김)일 때는 브라우저 탭을 새로 열지 않는다. 직접 실행하면 항상 연다.
+NO_BROWSER_FLAG="/tmp/corp-analysis-no-browser"
+if [ -f "$NO_BROWSER_FLAG" ]; then
+    rm -f "$NO_BROWSER_FLAG"
+else
+    (sleep 2 && open "$URL") &
+fi
+# exec로 바꾸지 않고 서버가 끝나면 셸이 정상 종료(exit 0)하게 한다 — 서버를 재시작하며 끈 경우에도
+# 터미널이 '정상 종료'로 보고 빈 창을 자동으로 닫는다(exec면 신호로 끝난 것으로 보여 '[프로세스 완료됨]' 창이 남음).
+.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port $PORT
+exit 0
