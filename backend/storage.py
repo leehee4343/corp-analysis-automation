@@ -407,6 +407,42 @@ def delete_project(project_id: int) -> bool:
     return count > 0
 
 
+def _project_member_split(project_id: int) -> tuple[list[str], list[str]]:
+    """참여 기업을 (이 프로젝트에만 있는 기업, 다른 프로젝트에도 있는 기업)으로 나눈다."""
+    rows, _ = _run("SELECT pc.business_no, (SELECT COUNT(*) FROM project_companies o WHERE o.business_no = pc.business_no "
+                   "AND o.project_id <> pc.project_id) FROM project_companies pc WHERE pc.project_id = %s ORDER BY pc.business_no",
+                   (project_id,), fetch="all")
+    exclusive = [bn for bn, others in rows if not others]
+    shared = [bn for bn, others in rows if others]
+    return exclusive, shared
+
+
+def project_purge_preview(project_id: int) -> dict:
+    """전체 삭제 전에 경고창에 보여 줄 건수."""
+    exclusive, shared = _project_member_split(project_id)
+    sales, _ = _run("SELECT COUNT(*), COALESCE(SUM(CASE WHEN dm_sent THEN 1 ELSE 0 END), 0), "
+                    "COALESCE(SUM(CASE WHEN decision IS NOT NULL THEN 1 ELSE 0 END), 0), "
+                    "COALESCE(SUM(CASE WHEN memo IS NOT NULL THEN 1 ELSE 0 END), 0) "
+                    "FROM sales_activities WHERE project_id = %s", (project_id,), fetch="one")
+    return {"companies": len(exclusive) + len(shared), "exclusive_companies": len(exclusive), "shared_companies": len(shared),
+            "sales_records": int(sales[0] or 0), "dm_sent": int(sales[1] or 0), "decisions": int(sales[2] or 0), "memos": int(sales[3] or 0)}
+
+
+def purge_project(project_id: int) -> dict:
+    """프로젝트 전체 삭제: 이 프로젝트에만 있는 기업은 분석 정보·원본 PDF까지 완전히 삭제하고, 다른 프로젝트에도
+    참여 중인 기업은 이 프로젝트 명단·영업 기록에서만 뺀다(다른 프로젝트 데이터 보호). 마지막으로 프로젝트 자체를 지운다.
+    영업 기록(sales_activities)은 참여 명단 FK cascade로 함께 지워진다."""
+    preview = project_purge_preview(project_id)
+    exclusive, _ = _project_member_split(project_id)
+    deleted = 0
+    for bn in exclusive:
+        if delete_company_and_pdf(bn):
+            deleted += 1
+    _run("DELETE FROM sales_activities WHERE project_id = %s", (project_id,))  # SQLite에서도 확실히
+    delete_project(project_id)
+    return {**preview, "deleted_companies": deleted}
+
+
 def add_companies_to_project(project_id: int, business_nos: list[str]) -> int:
     """이미 참여 중이면 건너뛴다. 반환: 새로 추가된 수."""
     added = 0

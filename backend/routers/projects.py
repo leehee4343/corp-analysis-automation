@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
+from .. import auth_middleware as auth
 from .. import storage
 from ..models import Project, ProjectCompaniesInput, ProjectInput, ProjectRef
 
@@ -68,6 +70,30 @@ def delete_project(project_id: int):
     """프로젝트와 참여 명단만 삭제. 기업 분석 데이터·원본 PDF는 남는다."""
     if not storage.delete_project(project_id):
         raise HTTPException(status_code=404, detail="존재하지 않는 프로젝트입니다.")
+
+
+class PurgeConfirm(BaseModel):
+    username: str = ""
+    password: str = ""
+
+
+@router.get("/projects/{project_id}/purge-preview")
+def purge_preview(project_id: int):
+    """전체 삭제 경고창용: 삭제될 기업 수·영업 기록 수."""
+    require_project(project_id)
+    return storage.project_purge_preview(project_id)
+
+
+@router.post("/projects/{project_id}/purge")
+def purge_project(project_id: int, data: PurgeConfirm):
+    """프로젝트 전체 삭제. 되돌릴 수 없으므로 로그인 아이디·비밀번호를 다시 확인한다."""
+    project = require_project(project_id)
+    if not auth.login_password():
+        raise HTTPException(status_code=409, detail="비밀번호가 설정되지 않은 환경에서는 전체 삭제를 할 수 없습니다.")
+    if not auth.check_credentials(data.username.strip(), data.password):
+        # 401은 화면이 '로그인 만료'로 보고 로그인 화면으로 보내므로 403을 쓴다
+        raise HTTPException(status_code=403, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+    return {"project": project["name"], **storage.purge_project(project_id)}
 
 
 @router.post("/projects/{project_id}/companies")

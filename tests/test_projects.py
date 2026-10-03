@@ -120,3 +120,38 @@ def test_project_status_follows_support_period():
 def test_upload_rejects_unknown_project(client):
     res = client.post("/api/upload", params={"project_id": 999}, files={"file": ("a.pdf", b"%PDF-1.4", "application/pdf")})
     assert res.status_code == 404
+
+
+def test_purge_project_requires_credentials_and_deletes_everything(client, monkeypatch):
+    monkeypatch.setenv("APP_LOGIN_PASSWORD", "1234")
+    login = client.post("/api/login", json={"username": "admin", "password": "1234"})
+    assert login.status_code == 200
+    a = _create(client, name="A사업").json()["id"]
+    b = _create(client, name="B사업").json()["id"]
+    client.post(f"/api/projects/{a}/companies", json={"business_nos": ["111-11-11111", "222-22-22222"]})
+    client.post(f"/api/projects/{b}/companies", json={"business_nos": ["222-22-22222"]})  # 나농장은 B에도 참여
+    client.patch(f"/api/sales/{a}/111-11-11111", json={"dm_sent": True, "memo": "통화함"})
+    client.patch(f"/api/sales/{a}/222-22-22222", json={"decision": "승인"})
+    client.patch(f"/api/sales/{b}/222-22-22222", json={"memo": "B사업 메모"})
+
+    preview = client.get(f"/api/projects/{a}/purge-preview").json()
+    assert preview["companies"] == 2 and preview["exclusive_companies"] == 1 and preview["shared_companies"] == 1
+    assert preview["sales_records"] == 2 and preview["dm_sent"] == 1 and preview["decisions"] == 1 and preview["memos"] == 1
+
+    assert client.post(f"/api/projects/{a}/purge", json={"username": "admin", "password": "wrong"}).status_code == 403
+    assert client.get(f"/api/projects/{a}").status_code == 200  # 비밀번호가 틀리면 아무것도 지우지 않음
+
+    res = client.post(f"/api/projects/{a}/purge", json={"username": "admin", "password": "1234"})
+    assert res.status_code == 200 and res.json()["deleted_companies"] == 1
+    assert client.get(f"/api/projects/{a}").status_code == 404
+    assert storage.load_company("111-11-11111") is None  # A에만 있던 기업은 완전히 삭제
+    assert storage.load_company("222-22-22222") is not None  # B에도 있는 기업은 유지
+    b_rows = client.get("/api/sales", params={"project_id": b}).json()
+    assert [r["memo"] for r in b_rows] == ["B사업 메모"]  # 다른 프로젝트의 영업 기록은 그대로
+    assert storage.list_sales(a) == []
+
+
+def test_purge_refused_without_password_configured(client):
+    pid = _create(client).json()["id"]
+    res = client.post(f"/api/projects/{pid}/purge", json={"username": "admin", "password": "1234"})
+    assert res.status_code == 409 and client.get(f"/api/projects/{pid}").status_code == 200

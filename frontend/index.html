@@ -343,6 +343,7 @@ th[aria-sort="descending"] .sort-icon{color:var(--primary-blue);} th[aria-sort="
 .table-bulk-label{font-size:13px; color:var(--text-muted); margin-right:4px;}
 textarea.form-control.memo-textarea{min-height:200px;}
 .content-inner-gap-top{margin-top:var(--content-inner-gap);}
+.content-object-gap-top{margin-top:var(--content-object-gap);}
 .memo-count{text-align:right;}
 .dm-check{display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;}
 .dm-check input{width:16px; height:16px; accent-color:var(--primary-blue); cursor:pointer;}
@@ -2620,7 +2621,8 @@ function initProjects(){
       {key:'created_at', label:'등록일', render:p => fmtDate(p.created_at)},
       {key:'select', label:'선택', render:p => `<button type="button" class="${p.id === currentProjectId ? 'btn-task-progress' : 'btn-task-register'}" data-select-project="${p.id}">${p.id === currentProjectId ? '선택됨' : '선택'}</button>`},
       {key:'edit', label:'수정', render:p => `<button type="button" class="btn-task-done" data-edit-project="${p.id}">수정</button>`},
-      {key:'delete', label:'삭제', render:p => `<button type="button" class="btn-row-del" data-delete-project="${p.id}">삭제</button>`},
+      {key:'delete', label:'프로젝트만 삭제', render:p => `<button type="button" class="btn-row-del" data-delete-project="${p.id}">삭제</button>`},
+      {key:'purge', label:'전체 삭제', render:p => `<button type="button" class="btn-row-del" data-purge-project="${p.id}" aria-label="${esc(p.name)} 전체 삭제">전체 삭제</button>`},
     ],
   });
   projectGrid.attachColumnMenu(document.getElementById('projectColumns'));
@@ -2631,6 +2633,8 @@ function initProjects(){
     if(ed) return openProjectForm(projects.find(p => p.id === Number(ed.dataset.editProject)));
     const del = e.target.closest('[data-delete-project]');
     if(del) return deleteProject(projects.find(p => p.id === Number(del.dataset.deleteProject)));
+    const purge = e.target.closest('[data-purge-project]');
+    if(purge) return purgeProject(projects.find(p => p.id === Number(purge.dataset.purgeProject)));
   });
   document.getElementById('btnProjectCreate').addEventListener('click', () => openProjectForm(null));
 }
@@ -2690,8 +2694,8 @@ async function deleteProject(project){
   const ok = await confirmModal({
     title:'프로젝트 삭제', tone:'warning', confirmLabel:'삭제', confirmClass:'btn-delete',
     lead:`'${project.name}' 프로젝트를 삭제하시겠습니까?`,
-    text:`참여 기업 ${project.company_count}개사의 명단만 삭제됩니다.`,
-    note:'기업 분석 정보와 원본 PDF는 그대로 남아 다른 프로젝트에서 계속 쓸 수 있습니다.',
+    text:`참여 기업 ${project.company_count}개사의 명단과 이 프로젝트의 영업 관리 기록(DM 발송·승인/거절·메모)이 삭제됩니다.`,
+    note:'기업 분석 정보와 원본 PDF는 그대로 남아 다른 프로젝트에서 계속 쓸 수 있습니다. 기업까지 모두 지우려면 전체 삭제를 사용해 주세요.',
   });
   if(!ok) return;
   try{
@@ -2700,6 +2704,71 @@ async function deleteProject(project){
     showToast('success', `'${project.name}' 프로젝트를 삭제했습니다.`);
     loadProjectsView();
   }catch(e){ showToast('danger', `삭제하지 못했습니다. ${e.message}`); }
+}
+// 프로젝트 전체 삭제: ① 무엇이 지워지는지 경고 → ② 아이디·비밀번호 재확인 → ③ 삭제. 되돌릴 수 없다.
+// 이 프로젝트에만 있는 기업은 분석 정보·원본 PDF까지, 다른 프로젝트에도 있는 기업은 이 프로젝트 명단·영업 기록에서만 지운다.
+async function purgeProject(project){
+  let preview;
+  try{ preview = await api(`/api/projects/${project.id}/purge-preview`); }
+  catch(e){ return showToast('danger', `삭제 대상을 확인하지 못했습니다. ${e.message}`); }
+  const n = v => Number(v).toLocaleString('ko-KR');
+  const proceed = await new Promise(resolve => {
+    let ok = false;
+    const modal = openModal({
+      title:'프로젝트 전체 삭제', size:'modal-lg', role:'alertdialog',
+      bodyHtml:`${noticeBox('danger', `'${project.name}' 프로젝트의 모든 데이터를 삭제합니다.`,
+          '삭제한 데이터는 되돌릴 수 없습니다. 아래 내용을 확인해 주세요.', '계속하려면 다음 단계에서 아이디와 비밀번호를 다시 입력해야 합니다.')}
+        <div class="content-object-gap-top">${kvGrid([
+          {label:'프로젝트', value:project.name, wide:true},
+          {label:'등록 기업', value:`${n(preview.companies)}개사 — 기업 분석 정보·재무 데이터·원본 PDF 삭제`, wide:true},
+          ...(preview.shared_companies ? [{label:'다른 프로젝트 참여 기업', value:`${n(preview.shared_companies)}개사 — 다른 프로젝트에서 쓰고 있어 기업 정보는 남기고 이 프로젝트에서만 제외`, wide:true}] : []),
+          {label:'영업 관리 기록', value:`${n(preview.sales_records)}건 — DM 발송 ${n(preview.dm_sent)}건 · 승인/거절 ${n(preview.decisions)}건 · 메모 ${n(preview.memos)}건 모두 삭제`, wide:true},
+        ])}</div>`,
+      actions:[
+        {label:'다음', className:'btn-delete', onClick:m => { ok = true; m.close(); }},
+        {label:'취소', className:'btn-secondary'},
+      ],
+    });
+    modal.onClose = () => resolve(ok);
+  });
+  if(!proceed) return;
+
+  const modal = openModal({
+    title:'관리자 인증', size:'modal-sm', role:'alertdialog',
+    bodyHtml:`<p class="form-hint">'${esc(project.name)}' 전체 삭제를 진행하려면 로그인 아이디와 비밀번호를 입력해 주세요.</p>
+      <div class="form-section content-inner-gap-top">
+        <div class="form-group col-full"><label class="form-label" for="purgeUser">아이디<span class="required" aria-hidden="true">*</span></label>
+          <input class="form-control" id="purgeUser" autocomplete="username" value="admin" aria-required="true"></div>
+        <div class="form-group col-full"><label class="form-label" for="purgePass">비밀번호<span class="required" aria-hidden="true">*</span></label>
+          <input class="form-control" id="purgePass" type="password" autocomplete="current-password" aria-required="true" aria-describedby="purgeError"></div>
+        <p class="form-error col-full" id="purgeError" hidden><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.danger}</svg><span></span></p>
+      </div>`,
+    actions:[
+      {label:'전체 삭제', className:'btn-delete', onClick: async (m, btn) => {
+        const q = sel => m.root.querySelector(sel);
+        const err = msg => { q('#purgeError').hidden = false; q('#purgeError span').textContent = msg; q('#purgePass').setAttribute('aria-invalid', 'true'); q('#purgePass').select(); };
+        const body = {username:q('#purgeUser').value.trim(), password:q('#purgePass').value};
+        if(!body.password) return err('비밀번호를 입력해 주세요.');
+        btn.disabled = true; btn.textContent = '삭제 중…';
+        try{
+          const r = await api(`/api/projects/${project.id}/purge`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+          m.close();
+          if(project.id === currentProjectId) setCurrentProject(null, false);
+          invalidateCaches(); refreshIssueCount();
+          showToast('success', `'${r.project}' 프로젝트를 전체 삭제했습니다. (기업 ${n(r.deleted_companies)}개사, 영업 기록 ${n(r.sales_records)}건)`);
+          loadProjectsView();
+        }catch(e){
+          err(e.message);
+          btn.disabled = false; btn.textContent = '전체 삭제';
+        }
+      }},
+      {label:'취소', className:'btn-secondary'},
+    ],
+  });
+  setTimeout(() => modal.root.querySelector('#purgePass').focus(), 50);
+  modal.root.querySelector('#purgePass').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); modal.root.querySelector('.modal-footer .btn-delete').click(); }
+  });
 }
 async function removeFromProject(businessNo, name, screen){
   const project = currentProject();
