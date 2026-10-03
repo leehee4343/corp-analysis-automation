@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -41,7 +42,19 @@ def _pg_url() -> str | None:
 
 def _pg_conn():
     import psycopg  # SQLite만 쓰는 환경에서는 필요 없도록 지연 임포트
-    return psycopg.connect(_pg_url(), autocommit=True)
+    # 순간적인 DNS·네트워크 오류(예: 'failed to resolve host')로 화면에 500이 뜨지 않도록 두 번까지 다시 시도
+    for attempt in range(3):
+        try:
+            return psycopg.connect(_pg_url(), autocommit=True, connect_timeout=10)
+        except psycopg.OperationalError:
+            if attempt == 2:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+
+
+def uses_object_storage() -> bool:
+    """원본 PDF를 Supabase Storage에 보관하는 모드인지(= DATABASE_URL 사용)."""
+    return bool(_pg_url())
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -702,8 +715,10 @@ def filter_companies(
     """기업목록/영업 대상 분류 화면이 공통으로 쓰는 검색·필터 로직.
     ranges: {지표(METRICS 키): (최소, 최대)} — 양 끝 포함. 범위를 지정한 지표 값이 없는 기업은 제외."""
     if q:
-        needle = q.strip()
-        companies = [c for c in companies if needle in c.company_name or needle in c.business_no]
+        # 띄어쓰기·하이픈 무시: '4129313689'·'옥산 농원'으로도 찾을 수 있게
+        norm = lambda v: (v or "").replace(" ", "").replace("-", "").lower()
+        needle = norm(q)
+        companies = [c for c in companies if needle in norm(c.company_name) or needle in norm(c.business_no)]
     if industry:
         companies = [c for c in companies if c.industry_name == industry]
     if grade_band_filter:

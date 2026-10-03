@@ -91,7 +91,9 @@ def patch_company(business_no: str, update: CompanyUpdate):
 
 @router.delete("/companies/{business_no}", status_code=204)
 def delete_company(business_no: str):
-    if not storage.delete_company(business_no):
+    """기업 상세의 삭제: PDF 목록의 삭제와 같이 원본 PDF(Storage·source_pdfs)까지 지운다 — 예전에는 기업 정보만
+    지워 Storage에 주인 없는 PDF가 남았다. 참여 명단·영업 기록은 cascade로 함께 삭제."""
+    if not storage.delete_company_and_pdf(business_no):
         raise HTTPException(status_code=404, detail="등록되지 않은 사업자번호입니다.")
 
 

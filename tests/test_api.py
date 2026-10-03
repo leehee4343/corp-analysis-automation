@@ -275,3 +275,26 @@ def test_export_chart_table_to_excel(client):
 
 def test_export_chart_table_rejects_empty_columns(client):
     assert client.post("/api/export/table", json={"title": "x", "columns": [], "rows": []}).status_code == 422
+
+
+def test_search_ignores_hyphens_and_spaces(client):
+    storage.save_company(_sample_company())
+    assert client.get("/api/companies", params={"q": "4129313689"}).json()["total"] == 1
+    assert client.get("/api/companies", params={"q": "옥산 농원"}).json()["total"] == 1
+
+
+def test_detail_delete_also_removes_source_pdf(client, tmp_path):
+    pdf = tmp_path / "원본.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    storage.save_company(_sample_company(source_pdf=str(pdf)))
+    assert client.delete("/api/companies/412-93-13689").status_code == 204
+    assert not pdf.exists()  # 예전에는 기업 정보만 지우고 원본 PDF가 남았다
+
+
+def test_upload_rejects_pdf_without_business_no(client, monkeypatch):
+    from backend.parser.pdf_parser import ParsedCompany
+    monkeypatch.setattr(upload_router, "parse_pdf", lambda path: ParsedCompany(company_name="이름만", business_no=None))
+    monkeypatch.setattr(upload_router, "extract_grades", lambda path: None)
+    res = client.post("/api/upload", files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")})
+    assert res.status_code == 422 and "사업자번호" in res.json()["detail"]
+    assert client.get("/api/companies").json()["total"] == 0

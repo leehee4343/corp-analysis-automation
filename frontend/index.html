@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>기업분석 자동화 시스템</title>
+<link rel="icon" type="image/png" href="/assets/company-symbol.png">
 <style>
 /* 디자인 기준: DESIGN_GUIDE.md (토큰·컴포넌트 이름은 가이드 12장 색인을 따른다) */
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
@@ -239,7 +240,7 @@ select.form-control, .filter-select, .select-per-page{appearance:none; padding-r
 /* ===== 데이터 표 (5.3) ===== */
 .table-header-action-row{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
 .grid-page-summary{font-size:13px; color:var(--text-muted); font-variant-numeric:tabular-nums;}
-.table-actions{display:flex; align-items:center; gap:8px;}
+.table-actions{display:flex; align-items:center; gap:8px; position:relative;}  /* 열 설정 메뉴 기준 위치 */
 .table-scroll-wrapper{position:relative; border:1px solid var(--border-card); border-radius:var(--radius-md); overflow-x:auto; overflow-y:hidden; background:var(--bg-white);}
 .table-scroll-wrapper.is-loading{min-height:132px;}
 .data-table{width:100%; border-collapse:separate; border-spacing:0; font-size:13px; font-variant-numeric:tabular-nums;}
@@ -570,7 +571,7 @@ body.modal-open{overflow:hidden;}
     <section class="view" data-view="projects" hidden>
       <div class="table-card">
         <div class="table-header-action-row">
-          <div class="grid-page-summary" id="projectSummary">총 0개</div>
+          <div class="grid-page-summary" id="projectSummary">1 / 1 (총 0개)</div>
           <div class="table-actions"><button type="button" class="btn-secondary" id="projectColumns">열 설정</button></div>
         </div>
         <div class="table-scroll-wrapper data-grid" id="projectGrid"></div>
@@ -979,7 +980,6 @@ class DataGrid {
     menu.setAttribute('aria-label', '표시할 열 선택');
     button.setAttribute('aria-haspopup', 'true');
     button.setAttribute('aria-expanded', 'false');
-    button.parentElement.style.position = 'relative';
     button.after(menu);
     const render = () => {
       menu.innerHTML = `<div class="grid-col-menu-title">표시할 열</div>` + this.order.map(k => {
@@ -1563,7 +1563,7 @@ function renderSalesKpis(){
   const {dm, decision} = salesState.filter;
   const cards = [
     {label:'대상 기업', value:total, unit:'개', icon:'building', tone:'blue', filter:'|'},
-    {label:'DM 발송', value:sent, unit:'개', icon:'mail', tone:'info', filter:'sent|', sub:`미발송 ${(total - sent).toLocaleString('ko-KR')}개`},
+    {label:'DM 발송', value:sent, unit:'개', icon:'mail', tone:'info', filter:'sent|'},
     {label:'승인', value:approved, unit:'개', icon:'checkCircle', tone:'green', filter:'|승인'},
     {label:'거절', value:rejected, unit:'개', icon:'xCircle', tone:'red', filter:'|거절'},
     {label:'미정', value:total - approved - rejected, unit:'개', icon:'clock', tone:'orange', filter:'|미정'},
@@ -1681,7 +1681,7 @@ function renderDashKpis(s){
     {label:'등록 기업', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동', icon:'building', tone:'blue'},
     {label:'파싱 성공률', value:s.parsing_success_rate, unit:'%', href:'#/issues', title:'데이터 검증 화면으로 이동', empty:!s.total_companies, icon:'docCheck', tone:'info'},
     {label:'검증 대기', value:s.pending_issues, unit:'건', href:'#/issues', title:'데이터 검증 화면으로 이동', alert:s.pending_issues > 0,
-      sub:s.pending_issues > 0 ? '확인이 필요한 항목이 있습니다' : '대기 중인 항목이 없습니다', icon:'shieldAlert', tone:s.pending_issues > 0 ? 'red' : 'orange'},
+      sub:s.pending_issues > 0 ? '확인이 필요한 항목이 있습니다' : null, icon:'shieldAlert', tone:s.pending_issues > 0 ? 'red' : 'orange'},
     {label:'엑셀 보고서', value:s.total_companies, unit:'개', href:'#/companies', title:'기업 목록 화면으로 이동', icon:'sheet', tone:'green'},
   ];
   document.getElementById('dashKpis').innerHTML = cards.map(c => {
@@ -1978,7 +1978,7 @@ async function loadListScreen(screen){
 async function exportListExcel(screen, btn){
   const original = btn.innerHTML;
   try{
-    const data = await api(`${screen.endpoint}?${listParams(screen.state, {page:1, pageSize:1000})}`);
+    const data = await api(`${screen.endpoint}?${listParams(screen.state, {page:1, pageSize:100000})}`);
     if(!data.items.length){ showToast('info', '내려받을 기업이 없습니다.'); return; }
     if(data.items.length > 5){
       const ok = await confirmModal({
@@ -2655,7 +2655,7 @@ async function loadProjectsView(){
   projectGrid.setLoading(true);
   await loadProjects();
   projectGrid.setItems(projects);
-  document.getElementById('projectSummary').textContent = `총 ${projects.length.toLocaleString('ko-KR')}개`;
+  document.getElementById('projectSummary').textContent = summaryText(projects.length, 1, Math.max(projects.length, 1));  // 5.3.4 '현재/전체 (총 N개)'
   projectGrid.setLoading(false);
 }
 function openProjectForm(project){
@@ -2966,7 +2966,7 @@ function renderUploadTarget(){
       ${project ? `<p class="form-hint">업로드한 기업은 '${esc(project.name)}' 프로젝트의 참여 기업으로 등록됩니다. 이미 분석된 기업이면 최신 PDF로 갱신됩니다.</p>`
         : warningHint('업로드할 프로젝트를 선택해 주세요. 프로젝트를 선택해야 PDF를 등록할 수 있습니다.')}`;
     renderProjectSelect();
-    document.getElementById('uploadProjectSelect').addEventListener('change', e => setCurrentProject(e.target.value, false) || renderUploadTarget());
+    document.getElementById('uploadProjectSelect').addEventListener('change', e => { setCurrentProject(e.target.value, false); renderUploadTarget(); loadPdfList(); });
   }
   document.getElementById('dropzone').classList.toggle('is-disabled', !project);
 }

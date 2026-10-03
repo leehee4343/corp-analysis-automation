@@ -1,13 +1,28 @@
+# 실제 Render 서비스(srv-da2506jutv3s73bhcvpg)와 같은 설정: 무료 요금제, 영구 디스크 없음.
+# 데이터는 Supabase(DB + Storage)에 저장하므로 서버 디스크는 임시(작업용 파일만)다.
+# 비밀 값(DATABASE_URL, SUPABASE_*, STORAGE_*, APP_LOGIN_*)은 Render 대시보드의 환경변수로만 넣는다(sync: false).
 services:
   - type: web
     name: corp-analysis-automation
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
-    disk:
-      name: app-data
-      mountPath: /app/storage
-      sizeGB: 1
+    plan: free
+    branch: master
+    autoDeploy: true
     envVars:
-      - key: APP_STORAGE_ROOT
-        value: /app/storage
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        sync: false
+      - key: STORAGE_SERVICE_EMAIL
+        sync: false
+      - key: STORAGE_SERVICE_PASSWORD
+        sync: false
+      - key: APP_LOGIN_USER
+        sync: false
+      - key: APP_LOGIN_PASSWORD
+        sync: false
