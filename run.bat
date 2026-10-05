@@ -5,6 +5,17 @@ REM you change the setup/run steps here.
 setlocal
 cd /d "%~dp0"
 
+REM Load Supabase/login settings from .env (same keys as the macOS launcher).
+REM Without .env (or DATABASE_URL in it) the app uses local SQLite: data\companies.db.
+if exist .env (
+    for %%K in (DATABASE_URL SUPABASE_URL SUPABASE_PUBLISHABLE_KEY STORAGE_BUCKET STORAGE_SERVICE_EMAIL STORAGE_SERVICE_PASSWORD APP_LOGIN_PASSWORD APP_LOGIN_USER) do (
+        for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+            if "%%A"=="%%K" set "%%A=%%B"
+        )
+    )
+)
+if defined DATABASE_URL (echo Data: Supabase) else (echo Data: local SQLite - no DATABASE_URL in .env)
+
 if not exist .venv (
     echo [1/3] Creating virtual environment...
     python -m venv .venv
