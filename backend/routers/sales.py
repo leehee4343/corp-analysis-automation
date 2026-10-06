@@ -1,4 +1,4 @@
-"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부와 승인/거절 결과.
+"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부, 승인/거절 결과, 메모, 등급별 분류(S·A·B·C).
 
 목록은 프로젝트 참여 명단 전체를 한 번에 돌려주고(수백 건 규모) 검색·필터·페이징은 화면에서 한다(PDF 목록과 같은 방식).
 """
@@ -31,13 +31,16 @@ class SalesRow(BaseModel):
     updated_at: str | None = None
     memo: str | None = None
     memo_updated_at: str | None = None
+    tier: Literal["S", "A", "B", "C"] | None = None
 
 
 class SalesUpdate(BaseModel):
-    """보낸 필드만 바꾼다. decision에 null을 보내면 '미정'으로, memo에 null·빈 값을 보내면 메모 삭제."""
+    """보낸 필드만 바꾼다. decision에 null을 보내면 '미정'으로, memo에 null·빈 값을 보내면 메모 삭제,
+    tier(등급별 분류)에 null을 보내면 '미지정'으로."""
     dm_sent: bool | None = None
     decision: Literal["승인", "거절"] | None = None
     memo: str | None = Field(default=None, max_length=2000)
+    tier: Literal["S", "A", "B", "C"] | None = None
 
 
 class SalesTarget(BaseModel):
@@ -50,11 +53,11 @@ class SalesBulkUpdate(SalesUpdate):
 
 
 def _changes(data: SalesUpdate) -> dict:
-    changes = {k: getattr(data, k) for k in data.model_fields_set if k in ("dm_sent", "decision", "memo")}
+    changes = {k: getattr(data, k) for k in data.model_fields_set if k in ("dm_sent", "decision", "memo", "tier")}
     if changes.get("dm_sent", False) is None:
         raise HTTPException(status_code=422, detail="dm_sent는 true 또는 false여야 합니다.")
     if not changes:
-        raise HTTPException(status_code=422, detail="바꿀 항목(dm_sent, decision, memo)이 없습니다.")
+        raise HTTPException(status_code=422, detail="바꿀 항목(dm_sent, decision, memo, tier)이 없습니다.")
     return changes
 
 

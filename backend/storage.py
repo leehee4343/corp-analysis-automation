@@ -95,6 +95,7 @@ def _get_conn() -> sqlite3.Connection:
             updated_at TEXT NOT NULL,
             memo TEXT,
             memo_updated_at TEXT,
+            tier TEXT CHECK (tier IN ('S', 'A', 'B', 'C')),
             PRIMARY KEY (project_id, business_no),
             FOREIGN KEY (project_id, business_no) REFERENCES project_companies (project_id, business_no) ON DELETE CASCADE
         )
@@ -104,6 +105,9 @@ def _get_conn() -> sqlite3.Connection:
     for col in ("memo", "memo_updated_at"):
         if col not in sales_cols:
             conn.execute(f"ALTER TABLE sales_activities ADD COLUMN {col} TEXT")
+    # 등급별 분류 열 추가(2026-10-06) 전에 만들어진 로컬 DB 보정
+    if "tier" not in sales_cols:
+        conn.execute("ALTER TABLE sales_activities ADD COLUMN tier TEXT CHECK (tier IN ('S', 'A', 'B', 'C'))")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS companies (
             business_no TEXT PRIMARY KEY,
@@ -433,14 +437,16 @@ def _project_member_split(project_id: int) -> tuple[list[str], list[str]]:
 def project_purge_preview(project_id: int) -> dict:
     """전체 삭제 전에 경고창에 보여 줄 건수."""
     exclusive, shared = _project_member_split(project_id)
-    # 아무것도 입력되지 않은 행(미발송·미정·메모 없음)은 기록으로 세지 않는다
-    sales, _ = _run("SELECT COALESCE(SUM(CASE WHEN dm_sent OR decision IS NOT NULL OR memo IS NOT NULL THEN 1 ELSE 0 END), 0), "
+    # 아무것도 입력되지 않은 행(미발송·미정·메모 없음·등급 미지정)은 기록으로 세지 않는다
+    sales, _ = _run("SELECT COALESCE(SUM(CASE WHEN dm_sent OR decision IS NOT NULL OR memo IS NOT NULL OR tier IS NOT NULL THEN 1 ELSE 0 END), 0), "
                     "COALESCE(SUM(CASE WHEN dm_sent THEN 1 ELSE 0 END), 0), "
                     "COALESCE(SUM(CASE WHEN decision IS NOT NULL THEN 1 ELSE 0 END), 0), "
-                    "COALESCE(SUM(CASE WHEN memo IS NOT NULL THEN 1 ELSE 0 END), 0) "
+                    "COALESCE(SUM(CASE WHEN memo IS NOT NULL THEN 1 ELSE 0 END), 0), "
+                    "COALESCE(SUM(CASE WHEN tier IS NOT NULL THEN 1 ELSE 0 END), 0) "
                     "FROM sales_activities WHERE project_id = %s", (project_id,), fetch="one")
     return {"companies": len(exclusive) + len(shared), "exclusive_companies": len(exclusive), "shared_companies": len(shared),
-            "sales_records": int(sales[0] or 0), "dm_sent": int(sales[1] or 0), "decisions": int(sales[2] or 0), "memos": int(sales[3] or 0)}
+            "sales_records": int(sales[0] or 0), "dm_sent": int(sales[1] or 0), "decisions": int(sales[2] or 0), "memos": int(sales[3] or 0),
+            "tiers": int(sales[4] or 0)}
 
 
 def purge_project(project_id: int) -> dict:
@@ -491,24 +497,26 @@ def projects_of_company(business_no: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부 · 승인/거절 (sales_activities)
-# 같은 기업이라도 프로젝트(지원사업)마다 따로 관리한다. 행이 없으면 '미발송·미정'.
+# 영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부 · 승인/거절 · 메모 · 등급별 분류 (sales_activities)
+# 같은 기업이라도 프로젝트(지원사업)마다 따로 관리한다. 행이 없으면 '미발송·미정·미지정'.
 # ---------------------------------------------------------------------------
 SALES_DECISIONS = ("승인", "거절")
+# 등급별 분류(사용자 정의 2026-10-06): S 전략적으로 접근할 가장 중요한 기업 · A 중요 · B 보통 · C 후순위
+SALES_TIERS = ("S", "A", "B", "C")
 
 
 def list_sales(project_id: int | None = None) -> list[dict]:
     """프로젝트 참여 명단 전체 + 영업 현황. project_id가 없으면 모든 프로젝트."""
     rows, _ = _run(
         "SELECT pc.project_id, p.name, pc.business_no, s.dm_sent, s.dm_sent_at, s.decision, s.decided_at, s.updated_at, "
-        "s.memo, s.memo_updated_at "
+        "s.memo, s.memo_updated_at, s.tier "
         "FROM project_companies pc JOIN projects p ON p.id = pc.project_id "
         "LEFT JOIN sales_activities s ON s.project_id = pc.project_id AND s.business_no = pc.business_no"
         + (" WHERE pc.project_id = %s" if project_id else "") + " ORDER BY p.created_at DESC, pc.business_no",
         (project_id,) if project_id else (), fetch="all")
     companies = {c.business_no: c for c in list_companies(project_id)}
     out = []
-    for pid, pname, bn, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at in rows:
+    for pid, pname, bn, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at, tier in rows:
         c = companies.get(bn)
         if c is None:
             continue
@@ -518,7 +526,7 @@ def list_sales(project_id: int | None = None) -> list[dict]:
             "industry_name": c.industry_name, "credit_grade": c.credit_grade,
             "dm_sent": bool(dm_sent), "dm_sent_at": _iso(dm_sent_at), "decision": decision,
             "decided_at": _iso(decided_at), "updated_at": _iso(updated_at),
-            "memo": memo, "memo_updated_at": _iso(memo_updated_at),
+            "memo": memo, "memo_updated_at": _iso(memo_updated_at), "tier": tier,
         })
     return out
 
@@ -529,11 +537,13 @@ def is_project_member(project_id: int, business_no: str) -> bool:
 
 
 def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
-    """changes: dm_sent(bool) · decision('승인'|'거절'|None) · memo(str|None) 중 바꿀 것만. 발송일·처리일·메모 수정 일시는 바뀔 때 기록."""
-    row, _ = _run("SELECT dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at FROM sales_activities "
+    """changes: dm_sent(bool) · decision('승인'|'거절'|None) · memo(str|None) · tier('S'|'A'|'B'|'C'|None) 중 바꿀 것만.
+    발송일·처리일·메모 수정 일시는 바뀔 때 기록."""
+    row, _ = _run("SELECT dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at, tier FROM sales_activities "
                   "WHERE project_id = %s AND business_no = %s", (project_id, business_no), fetch="one")
-    dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at = (
-        (bool(row[0]), _iso(row[1]), row[2], _iso(row[3]), row[4], _iso(row[5])) if row else (False, None, None, None, None, None))
+    dm_sent, dm_sent_at, decision, decided_at, memo, memo_updated_at, tier = (
+        (bool(row[0]), _iso(row[1]), row[2], _iso(row[3]), row[4], _iso(row[5]), row[6]) if row
+        else (False, None, None, None, None, None, None))
     today = date.today().isoformat()
     if "dm_sent" in changes and bool(changes["dm_sent"]) != dm_sent:
         dm_sent = bool(changes["dm_sent"])
@@ -546,13 +556,17 @@ def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
         new_memo = (changes["memo"] or "").strip() or None  # 빈 메모는 삭제
         if new_memo != memo:
             memo, memo_updated_at = new_memo, (now if new_memo else None)
-    _run("INSERT INTO sales_activities (project_id, business_no, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at) "
-         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (project_id, business_no) DO UPDATE SET "
+    if "tier" in changes:
+        tier = changes["tier"] or None
+    _run("INSERT INTO sales_activities (project_id, business_no, dm_sent, dm_sent_at, decision, decided_at, updated_at, memo, memo_updated_at, tier) "
+         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (project_id, business_no) DO UPDATE SET "
          "dm_sent = excluded.dm_sent, dm_sent_at = excluded.dm_sent_at, decision = excluded.decision, "
-         "decided_at = excluded.decided_at, updated_at = excluded.updated_at, memo = excluded.memo, memo_updated_at = excluded.memo_updated_at",
-         (project_id, business_no, dm_sent if _pg_url() else int(dm_sent), dm_sent_at, decision, decided_at, now, memo, memo_updated_at))
+         "decided_at = excluded.decided_at, updated_at = excluded.updated_at, memo = excluded.memo, memo_updated_at = excluded.memo_updated_at, "
+         "tier = excluded.tier",
+         (project_id, business_no, dm_sent if _pg_url() else int(dm_sent), dm_sent_at, decision, decided_at, now, memo, memo_updated_at, tier))
     return {"project_id": project_id, "business_no": business_no, "dm_sent": dm_sent, "dm_sent_at": dm_sent_at,
-            "decision": decision, "decided_at": decided_at, "updated_at": now, "memo": memo, "memo_updated_at": memo_updated_at}
+            "decision": decision, "decided_at": decided_at, "updated_at": now, "memo": memo, "memo_updated_at": memo_updated_at,
+            "tier": tier}
 
 
 def source_pdf_path(business_no: str) -> str:

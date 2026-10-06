@@ -1,5 +1,7 @@
-"""영업 관리(DM 발송 · 승인/거절) API 테스트 — SQLite(tmp_path)로 격리."""
+"""영업 관리(DM 발송 · 승인/거절 · 메모 · 등급별 분류) API 테스트 — SQLite(tmp_path)로 격리."""
 from datetime import date, datetime, timezone
+
+import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -79,3 +81,52 @@ def test_memo_save_edit_and_clear(client):
     res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"memo": "   "})
     assert res.json()["memo"] is None and res.json()["memo_updated_at"] is None  # 빈 메모 = 삭제
     assert client.patch(f"/api/sales/{pid}/111-11-11111", json={"memo": "가" * 2001}).status_code == 422
+
+
+def test_tier_set_change_clear_and_validation(client):
+    pid = _project(client)
+    assert all(r["tier"] is None for r in client.get("/api/sales", params={"project_id": pid}).json())  # 기본은 미지정
+    res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": "S"})
+    assert res.status_code == 200 and res.json()["tier"] == "S"
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"decision": "승인", "memo": "핵심 고객"})  # 다른 항목을 바꿔도 등급 유지
+    row = next(r for r in client.get("/api/sales", params={"project_id": pid}).json() if r["business_no"] == "111-11-11111")
+    assert row["tier"] == "S" and row["decision"] == "승인" and row["memo"] == "핵심 고객"
+    assert client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": "B"}).json()["tier"] == "B"
+    res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": None})
+    assert res.json()["tier"] is None and res.json()["decision"] == "승인"  # 미지정으로 되돌림
+    for bad in ("D", "s", "S그룹"):
+        assert client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": bad}).status_code == 422
+
+
+def test_tier_bulk_and_per_project(client):
+    a = _project(client, "A사업")
+    b = _project(client, "B사업", members=("111-11-11111",))
+    items = [{"project_id": a, "business_no": bn} for bn in ("111-11-11111", "222-22-22222")]
+    assert client.post("/api/sales/bulk", json={"items": items, "tier": "A"}).json() == {"updated": 2}
+    by_project = {(r["project_id"], r["business_no"]): r for r in client.get("/api/sales").json()}
+    assert by_project[(a, "111-11-11111")]["tier"] == "A" and by_project[(a, "222-22-22222")]["tier"] == "A"
+    assert by_project[(b, "111-11-11111")]["tier"] is None  # 같은 기업도 프로젝트마다 따로
+    assert client.post("/api/sales/bulk", json={"items": items, "tier": None}).json() == {"updated": 2}  # 일괄 미지정
+    assert all(r["tier"] is None for r in client.get("/api/sales", params={"project_id": a}).json())
+
+
+def test_tier_counts_as_sales_record_in_purge_preview(client):
+    pid = _project(client)
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": "C"})
+    preview = client.get(f"/api/projects/{pid}/purge-preview").json()
+    assert preview["sales_records"] == 1 and preview["tiers"] == 1
+
+
+def test_old_local_db_gets_tier_column(tmp_path, monkeypatch):
+    """등급별 분류 이전에 만든 로컬 SQLite(tier 열 없음)도 시작 시 열이 추가되어 그대로 쓸 수 있다."""
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE sales_activities (project_id INTEGER NOT NULL, business_no TEXT NOT NULL, dm_sent INTEGER NOT NULL DEFAULT 0, "
+                 "dm_sent_at TEXT, decision TEXT, decided_at TEXT, updated_at TEXT NOT NULL, memo TEXT, memo_updated_at TEXT, "
+                 "PRIMARY KEY (project_id, business_no))")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(storage, "DB_PATH", db)
+    conn = storage._get_conn()
+    assert "tier" in {r[1] for r in conn.execute("PRAGMA table_info(sales_activities)")}
+    conn.close()
