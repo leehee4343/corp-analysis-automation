@@ -37,6 +37,19 @@ def test_list_defaults_to_unsent_undecided(client):
     assert all(r["dm_sent"] is False and r["decision"] is None and r["project_name"] == "A사업" for r in rows)
 
 
+def test_list_includes_extracted_email(client):
+    """PDF 기본정보의 이메일을 함께 돌려준다. 주소 형식이 아니면(빈 값·'-') 없는 것으로 본다."""
+    c = _company("111-11-11111", "가농장")
+    c.basic_extra = {"이메일": " farm@naver.com "}
+    storage.save_company(c)
+    c = _company("222-22-22222", "나농장")
+    c.basic_extra = {"이메일": "-"}
+    storage.save_company(c)
+    pid = _project(client)
+    emails = {r["business_no"]: r["email"] for r in client.get("/api/sales", params={"project_id": pid}).json()}
+    assert emails == {"111-11-11111": "farm@naver.com", "222-22-22222": None}
+
+
 def test_update_dm_and_decision_records_dates(client):
     pid = _project(client)
     res = client.patch(f"/api/sales/{pid}/111-11-11111", json={"dm_sent": True})

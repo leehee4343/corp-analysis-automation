@@ -210,6 +210,7 @@ select.form-control, .filter-select, .select-per-page{appearance:none; padding-r
 .btn-delete:hover{background:#334155; border-color:#334155;}
 :is(.btn-critical-primary, .btn-primary, .btn-search-main, .btn-secondary, .btn-reset-main, .btn-delete):disabled{opacity:.55; cursor:not-allowed;}
 .icon-excel{color:#16a34a;}
+.icon-ppt{color:#c2410c;}
 
 /* 표 안 행 액션 · 파일 액션 (5.4) */
 :is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download){
@@ -686,6 +687,8 @@ body.modal-open{overflow:hidden;}
             <select class="filter-select" id="salesDecision" name="decision"><option value="">전체</option><option value="승인">승인</option><option value="거절">거절</option><option value="미정">미정</option></select></div>
           <div class="filter-row"><label class="filter-label w-80" for="salesTier">등급 분류</label>
             <select class="filter-select" id="salesTier" name="tier"><option value="">전체</option></select></div>
+          <div class="filter-row"><label class="filter-label w-80" for="salesEmail">이메일</label>
+            <select class="filter-select" id="salesEmail" name="email"><option value="">전체</option><option value="yes">확보</option><option value="no">미확보</option></select></div>
         </div>
         <div class="filter-action-row">
           <button type="submit" class="btn-search-main">검색</button>
@@ -700,6 +703,7 @@ body.modal-open{overflow:hidden;}
             <select class="select-per-page" id="salesPerPage"><option value="10">10건</option><option value="20">20건</option><option value="50">50건</option><option value="100">100건</option><option value="100000">한번에 보기</option></select>
             <button type="button" class="btn-secondary" id="salesColumns">열 설정</button>
             <button type="button" class="btn-secondary" data-chart-export="sales"><svg class="icon-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="m9 12 6 6"/><path d="m15 12-6 6"/></svg>엑셀 다운로드</button>
+            <button type="button" class="btn-secondary" id="salesLetters" title="선택한 기업의 공문을 PPT로 받습니다(여러 기업은 ZIP)"><svg class="icon-ppt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 18v-6h3a2 2 0 0 1 0 4H9"/></svg>공문 다운로드</button>
           </div>
         </div>
         <div class="table-bulk-row" id="salesBulk">
@@ -1467,7 +1471,7 @@ function summaryIcon(name, tone){
    영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부 · 승인/거절
    목록은 한 번에 받아 화면에서 검색·필터·페이징(PDF 목록과 같은 방식). 같은 기업도 프로젝트마다 따로 관리.
    ============================================================ */
-const salesState = {items:[], page:1, pageSize:10, selected:new Set(), filter:{q:'', dm:'', decision:'', tier:''}};
+const salesState = {items:[], page:1, pageSize:10, selected:new Set(), filter:{q:'', dm:'', decision:'', tier:'', email:''}};
 let salesGrid = null;
 const salesKey = r => `${r.project_id}|${r.business_no}`;
 // 등급별 분류: S 전략적으로 접근할 가장 중요한 기업 · A 중요 · B 보통 · C 후순위 (프로젝트별로 따로 지정)
@@ -1492,6 +1496,9 @@ function initSales(){
       {key:'company_name', label:'기업명', render:r => `<a href="${detailHref(r.business_no, 'sales')}">${esc(r.company_name)}</a>`},
       {key:'business_no', label:'사업자번호', render:r => esc(r.business_no)},
       {key:'representative', label:'대표자', render:r => val(r.representative)},
+      // PDF에서 추출한 이메일 확보 여부(마우스를 올리면 주소)
+      {key:'email', label:'이메일', render:r => r.email
+        ? `<span class="badge-success" title="${esc(r.email)}">확보</span>` : '<span class="badge-tag">미확보</span>'},
       {key:'tier', label:'등급 분류', render:r => `<select class="filter-select decision-select tier-select${r.tier ? ` is-tier-${r.tier.toLowerCase()}` : ''}" data-sales-tier="${esc(salesKey(r))}" aria-label="${esc(r.company_name)} 등급 분류"${r.tier ? ` title="${esc(SALES_TIERS.find(t => t.value === r.tier).desc)}"` : ''}>
         ${tierOptions(r.tier, '미지정')}</select>`},
       {key:'dm', label:'DM 발송', render:r => `<label class="dm-check"><input type="checkbox" data-sales-dm="${esc(salesKey(r))}" ${r.dm_sent ? 'checked' : ''} aria-label="${esc(r.company_name)} DM 발송"><span>${r.dm_sent ? '발송' : '미발송'}</span></label>`},
@@ -1529,12 +1536,12 @@ function initSales(){
   document.getElementById('salesFilter').addEventListener('submit', e => {
     e.preventDefault();
     const f = e.target.elements;
-    salesState.filter = {q:f.q.value.trim(), dm:f.dm.value, decision:f.decision.value, tier:f.tier.value};
+    salesState.filter = {q:f.q.value.trim(), dm:f.dm.value, decision:f.decision.value, tier:f.tier.value, email:f.email.value};
     salesState.page = 1; renderSales();
   });
   document.getElementById('salesReset').addEventListener('click', () => {
     document.getElementById('salesFilter').reset();
-    salesState.filter = {q:'', dm:'', decision:'', tier:''}; salesState.page = 1; renderSales();
+    salesState.filter = {q:'', dm:'', decision:'', tier:'', email:''}; salesState.page = 1; renderSales();
   });
   document.getElementById('salesPerPage').addEventListener('change', e => { salesState.pageSize = Number(e.target.value); salesState.page = 1; renderSales(); });
   document.querySelectorAll('[data-sales-bulk]').forEach(btn => btn.addEventListener('click', async () => {
@@ -1556,6 +1563,7 @@ function initSales(){
     saveSales([...salesState.selected], changes, btn, true);
   }));
   // 요약 카드를 누르면 그 조건으로 목록을 거른다
+  document.getElementById('salesLetters').addEventListener('click', e => downloadSalesLetters(e.currentTarget));
   document.getElementById('salesKpis').addEventListener('click', e => {
     const card = e.target.closest('[data-sales-filter]');
     if(!card) return;
@@ -1584,13 +1592,14 @@ async function loadSales(){
   }
 }
 function filteredSales(){
-  const {q, dm, decision, tier} = salesState.filter;
+  const {q, dm, decision, tier, email} = salesState.filter;
   const needle = q.replace(/\s/g, '').toLowerCase();
   return salesState.items.filter(r =>
     (!needle || [r.company_name, r.business_no, r.business_no.replace(/-/g, ''), r.representative || '', r.memo || ''].some(v => v.replace(/\s/g, '').toLowerCase().includes(needle)))
     && (!dm || (dm === 'sent') === r.dm_sent)
     && (!decision || (decision === '미정' ? !r.decision : r.decision === decision))
-    && (!tier || (tier === 'none' ? !r.tier : r.tier === tier)));
+    && (!tier || (tier === 'none' ? !r.tier : r.tier === tier))
+    && (!email || (email === 'yes') === !!r.email));
 }
 function renderSalesKpis(){
   const items = salesState.items, total = items.length;
@@ -1614,13 +1623,17 @@ function renderSalesKpis(){
     </a>`;
   }).join('');
 }
-// 등급 분류 검색 조건·일괄 지정 선택지 (검색 조건에는 그룹별 기업 수를 함께 표시)
+// 등급 분류·이메일 검색 조건과 일괄 지정 선택지 (검색 조건에는 해당 기업 수를 함께 표시)
 function renderSalesTierOptions(){
   const count = v => salesState.items.filter(r => (r.tier || 'none') === v).length.toLocaleString('ko-KR');
   const filter = document.getElementById('salesTier');
   const picked = filter.value;  // 검색 전에 고른 값이 다시 그릴 때 사라지지 않게
   filter.innerHTML = `<option value="">전체</option>${SALES_TIERS.map(t => `<option value="${t.value}">${t.label} (${count(t.value)})</option>`).join('')}<option value="none">미지정 (${count('none')})</option>`;
   filter.value = picked;
+  const emailFilter = document.getElementById('salesEmail'), emailPicked = emailFilter.value;
+  const withEmail = salesState.items.filter(r => r.email).length;
+  emailFilter.innerHTML = `<option value="">전체</option><option value="yes">확보 (${withEmail.toLocaleString('ko-KR')})</option><option value="no">미확보 (${(salesState.items.length - withEmail).toLocaleString('ko-KR')})</option>`;
+  emailFilter.value = emailPicked;
   const bulk = document.getElementById('salesBulkTier');
   if(!bulk.options.length) bulk.innerHTML = tierOptions('S', '미지정');
 }
@@ -1639,8 +1652,8 @@ function renderSales(){
   const project = currentProject();
   CHART_EXPORTS.set('sales', {
     title: project ? `${project.name} 영업 관리` : '영업 관리', subtitle: `${project ? `프로젝트: ${project.name}` : '전체 프로젝트'} · ${items.length}개`,
-    columns:['No', '기업명', '사업자번호', '대표자', '등급 분류', 'DM 발송', '발송일', '결과', '처리일', '메모'],
-    rows: items.map((r, i) => [i + 1, r.company_name, r.business_no, r.representative, tierLabel(r.tier), r.dm_sent ? '발송' : '미발송', r.dm_sent_at,
+    columns:['No', '기업명', '사업자번호', '대표자', '이메일', '등급 분류', 'DM 발송', '발송일', '결과', '처리일', '메모'],
+    rows: items.map((r, i) => [i + 1, r.company_name, r.business_no, r.representative, r.email || '미확보', tierLabel(r.tier), r.dm_sent ? '발송' : '미발송', r.dm_sent_at,
       r.decision || '미정', r.decided_at, r.memo]),
   });
 }
@@ -1690,6 +1703,31 @@ function openSalesMemo(key){
   ta.addEventListener('input', count);
   count();
   setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 50);
+}
+// 공문 다운로드: 선택한 기업의 공문을 PPT로(1개면 공문_기업명.pptx, 여러 개면 ZIP). 문서번호 일련번호는 목록 순서
+async function downloadSalesLetters(btn){
+  const items = salesState.items.filter(r => salesState.selected.has(salesKey(r)))
+    .map(r => ({project_id:r.project_id, business_no:r.business_no}));
+  if(!items.length){ showToast('warning', '공문을 받을 기업을 목록에서 선택하세요.'); return; }
+  const label = btn.lastChild.textContent;
+  btn.disabled = true;
+  btn.lastChild.textContent = `공문 만드는 중 (${items.length.toLocaleString('ko-KR')}개)`;
+  try{
+    const res = await fetch('/api/sales/letters', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({items})});
+    if(res.status === 401){ location.replace('/login'); return; }
+    if(!res.ok){
+      let detail = null;
+      try{ detail = (await res.json())?.detail; }catch(e){ /* 본문 없음 */ }
+      throw new Error(typeof detail === 'string' ? detail : `공문을 만들지 못했습니다. (${res.status})`);
+    }
+    const blob = await res.blob();
+    const encoded = (res.headers.get('Content-Disposition') || '').split("''")[1];
+    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download: encoded ? decodeURIComponent(encoded) : '공문.zip'});
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast('success', `${items.length.toLocaleString('ko-KR')}개 기업의 공문을 내려받았습니다.`);
+  }catch(err){ showToast('danger', err.message); }
+  finally{ btn.disabled = false; btn.lastChild.textContent = label; }
 }
 async function saveSales(keys, changes, control, bulk = false){
   if(!keys.length) return;

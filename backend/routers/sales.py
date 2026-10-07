@@ -1,15 +1,22 @@
-"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부, 승인/거절 결과, 메모, 등급별 분류(S·A·B·C).
+"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부, 승인/거절 결과, 메모, 등급별 분류(S·A·B·C), 공문(PPTX) 다운로드.
 
 목록은 프로젝트 참여 명단 전체를 한 번에 돌려주고(수백 건 규모) 검색·필터·페이징은 화면에서 한다(PDF 목록과 같은 방식).
 """
 from __future__ import annotations
 
+import io
+import re
+import zipfile
+from datetime import date
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .. import storage
+from ..letter import generator as letter
 
 router = APIRouter(prefix="/api", tags=["sales"])
 
@@ -24,6 +31,7 @@ class SalesRow(BaseModel):
     address: str | None = None
     industry_name: str | None = None
     credit_grade: str | None = None
+    email: str | None = None  # PDF 기본정보에서 추출한 이메일(없으면 null)
     dm_sent: bool = False
     dm_sent_at: str | None = None
     decision: Literal["승인", "거절"] | None = None
@@ -83,3 +91,49 @@ def bulk_update_sales(data: SalesBulkUpdate):
     for pid, bn in targets:
         storage.update_sales(pid, bn, changes)
     return {"updated": len(targets)}
+
+
+class LetterRequest(BaseModel):
+    items: list[SalesTarget] = Field(min_length=1, max_length=500)
+
+
+PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+_UNSAFE_FILENAME = re.compile(r'[\\/:*?"<>|]+')  # 파일명에 쓸 수 없는 문자
+
+
+def _attachment(filename: str) -> dict:
+    return {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+
+
+@router.post("/sales/letters")
+def download_letters(data: LetterRequest):
+    """선택한 기업의 공문(PPTX). 1개면 '공문_기업명.pptx', 여러 개면 기업별 파일을 묶은 ZIP.
+    문서번호의 일련번호는 요청 순서(화면 목록 순서)를 따른다."""
+    targets = list(dict.fromkeys((t.project_id, t.business_no) for t in data.items))  # 순서 유지 중복 제거
+    tiers: dict[tuple[int, str], str | None] = {}
+    for pid in {pid for pid, _ in targets}:
+        tiers.update({(r["project_id"], r["business_no"]): r["tier"] for r in storage.list_sales(pid)})
+    missing = [bn for pid, bn in targets if (pid, bn) not in tiers]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"참여 기업이 아닌 항목이 있습니다: {', '.join(missing[:5])}")
+    issued = date.today()
+    files: list[tuple[str, bytes]] = []
+    used: set[str] = set()
+    for seq, key in enumerate(targets, 1):
+        company = storage.load_company(key[1])
+        if company is None:
+            raise HTTPException(status_code=404, detail=f"기업 정보를 찾을 수 없습니다: {key[1]}")
+        name = f"공문_{_UNSAFE_FILENAME.sub('', company.company_name) or company.business_no}"
+        if name in used:  # 같은 기업명이 여러 프로젝트에서 선택된 경우
+            name = f"{name}_{company.business_no}"
+        used.add(name)
+        content = letter.render_letter(company, doc_no=letter.doc_number(issued, tiers[key], seq), issued=issued)
+        files.append((f"{name}.pptx", content))
+    if len(files) == 1:
+        return Response(files[0][1], media_type=PPTX, headers=_attachment(files[0][0]))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename, content in files:
+            zf.writestr(filename, content)
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers=_attachment(f"공문_{len(files)}개기업_{issued:%Y%m%d}.zip"))

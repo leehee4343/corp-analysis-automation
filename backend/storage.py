@@ -505,6 +505,12 @@ SALES_DECISIONS = ("승인", "거절")
 SALES_TIERS = ("S", "A", "B", "C")
 
 
+def _company_email(c: Company) -> str | None:
+    """PDF 기본정보의 이메일. 주소 형식(@ 포함)이 아니면 없는 것으로 본다."""
+    email = (c.basic_extra.get("이메일") or "").strip()
+    return email if "@" in email else None
+
+
 def list_sales(project_id: int | None = None) -> list[dict]:
     """프로젝트 참여 명단 전체 + 영업 현황. project_id가 없으면 모든 프로젝트."""
     rows, _ = _run(
@@ -523,7 +529,7 @@ def list_sales(project_id: int | None = None) -> list[dict]:
         out.append({
             "project_id": pid, "project_name": pname, "business_no": bn, "company_name": c.company_name,
             "representative": c.representative, "postal_code": c.postal_code, "address": c.address,
-            "industry_name": c.industry_name, "credit_grade": c.credit_grade,
+            "industry_name": c.industry_name, "credit_grade": c.credit_grade, "email": _company_email(c),
             "dm_sent": bool(dm_sent), "dm_sent_at": _iso(dm_sent_at), "decision": decision,
             "decided_at": _iso(decided_at), "updated_at": _iso(updated_at),
             "memo": memo, "memo_updated_at": _iso(memo_updated_at), "tier": tier,
