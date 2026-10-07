@@ -151,3 +151,138 @@ def test_download_rejects_non_member(client):
     res = client.post("/api/sales/letters", json={"items": [{"project_id": pid, "business_no": "999-99-99999"}]})
     assert res.status_code == 404
     assert client.post("/api/sales/letters", json={"items": []}).status_code == 422
+
+
+# ----- 이미지 다운로드 (세로로 긴 PNG 한 장)
+from PIL import Image
+
+from backend.letter import image as letter_image
+
+
+def _fake_pdf(pages=2) -> bytes:
+    import fitz
+    doc = fitz.open()
+    for i in range(pages):
+        doc.new_page(width=595.5, height=842).insert_text((72, 72), f"page {i + 1}")
+    return doc.tobytes()
+
+
+def test_pdf_pages_stacked_vertically():
+    png = letter_image.pdf_to_long_png(_fake_pdf(2))
+    w, h = Image.open(io.BytesIO(png)).size
+    page_h = round(842 * letter_image.IMAGE_WIDTH / 595.5)
+    assert w == letter_image.IMAGE_WIDTH and abs(h - (page_h * 2 + letter_image.PAGE_GAP)) <= 2
+
+
+def test_download_images_single_and_zip(client, monkeypatch):
+    monkeypatch.setattr(letter_image, "pptx_to_pdfs", lambda files: [_fake_pdf() for _ in files])
+    pid = _project(client)
+    one = [{"project_id": pid, "business_no": "111-11-11111"}]
+    res = client.post("/api/sales/letter-images", json={"items": one})
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+    assert unquote(res.headers["content-disposition"].split("''")[1]) == "공문_농업회사법인테스트종묘(주).png"
+    both = one + [{"project_id": pid, "business_no": "222-22-22222"}]
+    res = client.post("/api/sales/letter-images", json={"items": both})
+    assert zipfile.ZipFile(io.BytesIO(res.content)).namelist() == ["공문_농업회사법인테스트종묘(주).png", "공문_가상영농조합법인.png"]
+    assert unquote(res.headers["content-disposition"].split("''")[1]).startswith("공문이미지_2개기업_")
+
+
+def test_download_images_without_converter(client, monkeypatch):
+    monkeypatch.setattr(letter_image, "find_converter", lambda: None)
+    pid = _project(client)
+    res = client.post("/api/sales/letter-images", json={"items": [{"project_id": pid, "business_no": "111-11-11111"}]})
+    assert res.status_code == 503 and "PowerPoint 또는 LibreOffice" in res.json()["detail"]
+
+
+@pytest.mark.skipif(letter_image.find_converter() is None, reason="PowerPoint·LibreOffice가 없는 환경")
+def test_real_conversion_to_long_png():
+    png = letter_image.pptx_to_long_pngs([g.render_letter(_company(), doc_no="X")])[0]
+    w, h = Image.open(io.BytesIO(png)).size
+    assert w == letter_image.IMAGE_WIDTH and h > 4000  # A4 두 쪽
+
+
+# ----- 이미지(모바일용): 스마트폰 폭에 맞춰 다시 배치한 PNG
+from backend.letter import mobile
+
+
+def test_mobile_png_is_phone_width():
+    png = mobile.render_mobile_png(_company(), doc_no="FS-2026-1007-A01", issued=date(2026, 10, 7))
+    w, h = Image.open(io.BytesIO(png)).size
+    assert w == 1080 and h > 8000  # 360dp x 3배, 위아래로 긴 한 장
+
+
+def test_mobile_png_without_financial_data():
+    c = _company(diagnosis=DiagnosisRatings(), diagnosis_details={}, income_summary={}, balance_summary={},
+                 credit_grade=None, founded_date=None, industry_name=None, address=None)
+    assert Image.open(io.BytesIO(mobile.render_mobile_png(c, doc_no="X"))).width == 1080
+
+
+def test_mobile_layout_wraps_within_width():
+    width = 300
+    runs = [("아주긴어절이한줄보다길어서글자단위로잘라야하는경우" * 2, False, "#000"), (" 일반 문장 이어서 씁니다", True, "#000")]
+    for line in mobile.layout(runs, width, 14):
+        t, b, _, x = line[-1]
+        assert x + mobile.font(14, b).getlength(t.rstrip()) <= width + 1
+    # 줄바꿈 없는 공백(U+00A0)으로 묶은 '낮음 20'은 나뉘지 않는다
+    lines = mobile.layout([("가" * 30 + " 낮음\u00a020", False, "#000")], mobile.font(12, False).getlength("가" * 31), 12)
+    assert any("낮음\u00a020" in t for t, *_ in lines[-1])
+
+
+def test_download_mobile_images(client):
+    pid = _project(client)
+    one = [{"project_id": pid, "business_no": "111-11-11111"}]
+    res = client.post("/api/sales/letter-mobile-images", json={"items": one})
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+    assert unquote(res.headers["content-disposition"].split("''")[1]) == "공문_농업회사법인테스트종묘(주)_모바일.png"
+    both = one + [{"project_id": pid, "business_no": "222-22-22222"}]
+    res = client.post("/api/sales/letter-mobile-images", json={"items": both})
+    assert zipfile.ZipFile(io.BytesIO(res.content)).namelist() == [
+        "공문_농업회사법인테스트종묘(주)_모바일.png", "공문_가상영농조합법인_모바일.png"]
+
+
+# ----- 공문(HTML) 공유 링크 /l/{code}: 로그인 없이 열림, 90일 유효, 문서번호·시행일자는 만든 날로 고정
+def test_letter_link_created_once_and_reused(client):
+    pid = _project(client)
+    client.patch(f"/api/sales/{pid}/111-11-11111", json={"tier": "B"})
+    first = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    assert len(first["code"]) == 8 and first["url"].endswith(f"/l/{first['code']}")
+    assert first["doc_no"].endswith("-B01")
+    issued = date.fromisoformat(first["issued_at"])
+    assert date.fromisoformat(first["expires_at"]).toordinal() - issued.toordinal() == 90
+    again = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    assert again["code"] == first["code"] and again["doc_no"] == first["doc_no"]  # 유효한 동안 같은 링크
+    other = client.post(f"/api/sales/{pid}/222-22-22222/letter-link").json()
+    assert other["code"] != first["code"] and other["doc_no"].endswith("-N02")  # 그날 두 번째 링크
+    assert client.post(f"/api/sales/{pid}/999-99-99999/letter-link").status_code == 404
+
+
+def test_letter_page_is_public_and_shows_letter(client, monkeypatch):
+    pid = _project(client)
+    link = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    monkeypatch.setenv("APP_LOGIN_PASSWORD", "1234")  # 로그인을 켜도 공문 화면은 열린다
+    res = client.get(f"/l/{link['code']}")
+    assert res.status_code == 200 and "text/html" in res.headers["content-type"]
+    body = res.text
+    for expected in (link["doc_no"], "농업회사법인 테스트종묘(주)", "URL 복사", "인쇄", "noindex", "✓ 충족 2"):
+        assert expected in body, expected
+    assert res.headers["cache-control"] == "no-store"
+    # 다른 화면·API는 여전히 로그인 필요
+    assert client.post(f"/api/sales/{pid}/111-11-11111/letter-link").status_code == 401
+    assert client.get("/l/NoSuchCode1").status_code == 404
+
+
+def test_expired_letter_link(client):
+    pid = _project(client)
+    link = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    storage._run("UPDATE letter_links SET expires_at = %s WHERE code = %s", ("2000-01-01", link["code"]))
+    res = client.get(f"/l/{link['code']}")
+    assert res.status_code == 410 and "열람 기간이 지났습니다" in res.text
+    renewed = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    assert renewed["code"] != link["code"]  # 만료되면 새 링크(새 문서번호·시행일자)
+
+
+def test_letter_links_removed_with_project_membership(client):
+    pid = _project(client)
+    link = client.post(f"/api/sales/{pid}/111-11-11111/letter-link").json()
+    storage.remove_company_from_project(pid, "111-11-11111")
+    assert storage.get_letter_link(link["code"]) is None

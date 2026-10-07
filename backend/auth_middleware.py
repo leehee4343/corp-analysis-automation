@@ -25,9 +25,9 @@ from starlette.responses import JSONResponse, RedirectResponse
 
 COOKIE_NAME = "corp_session"
 SESSION_SECONDS = 7 * 24 * 3600
-# 로그인 없이 열리는 경로: 로그인 화면·로그인/세션 API·화면 이미지
+# 로그인 없이 열리는 경로: 로그인 화면·로그인/세션 API·화면 이미지·기업 담당자에게 보내는 공문(HTML) /l/{code}
 _PUBLIC_PATHS = {"/login", "/api/login", "/api/logout", "/api/session"}
-_PUBLIC_PREFIXES = ("/assets/",)
+_PUBLIC_PREFIXES = ("/assets/", "/l/")
 
 
 def login_password() -> str | None:

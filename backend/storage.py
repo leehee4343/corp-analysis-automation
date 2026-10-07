@@ -109,6 +109,18 @@ def _get_conn() -> sqlite3.Connection:
     if "tier" not in sales_cols:
         conn.execute("ALTER TABLE sales_activities ADD COLUMN tier TEXT CHECK (tier IN ('S', 'A', 'B', 'C'))")
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS letter_links (
+            code TEXT PRIMARY KEY,
+            project_id INTEGER NOT NULL,
+            business_no TEXT NOT NULL,
+            doc_no TEXT NOT NULL,
+            issued_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (project_id, business_no) REFERENCES project_companies (project_id, business_no) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS companies (
             business_no TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
@@ -460,6 +472,7 @@ def purge_project(project_id: int) -> dict:
         if delete_company_and_pdf(bn):
             deleted += 1
     _run("DELETE FROM sales_activities WHERE project_id = %s", (project_id,))  # SQLite에서도 확실히
+    _run("DELETE FROM letter_links WHERE project_id = %s", (project_id,))
     delete_project(project_id)
     return {**preview, "deleted_companies": deleted}
 
@@ -573,6 +586,55 @@ def update_sales(project_id: int, business_no: str, changes: dict) -> dict:
     return {"project_id": project_id, "business_no": business_no, "dm_sent": dm_sent, "dm_sent_at": dm_sent_at,
             "decision": decision, "decided_at": decided_at, "updated_at": now, "memo": memo, "memo_updated_at": memo_updated_at,
             "tier": tier}
+
+
+# ---------------------------------------------------------------------------
+# 공문(HTML) 공유 링크: 기업 담당자에게 보내는 짧은 주소 /l/{code} (로그인 없이 열림, 90일 뒤 만료)
+# 사용자 결정 2026-10-07: 문서번호·시행일자는 링크를 처음 만든 날로 고정, 재무 수치는 열 때마다 최신 값.
+# 같은 기업은 유효한 링크가 있으면 그 링크를 다시 쓴다. 참여 명단에서 빠지면 FK cascade로 함께 지워진다.
+# ---------------------------------------------------------------------------
+LETTER_LINK_DAYS = 90
+_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"  # 헷갈리는 0/O·1/l/I 제외
+
+
+def _link_row(row) -> dict:
+    code, pid, bn, doc_no, issued_at, expires_at = row
+    return {"code": code, "project_id": pid, "business_no": bn, "doc_no": doc_no,
+            "issued_at": _iso(issued_at)[:10], "expires_at": _iso(expires_at)[:10]}
+
+
+def sales_tier(project_id: int, business_no: str) -> str | None:
+    row, _ = _run("SELECT tier FROM sales_activities WHERE project_id = %s AND business_no = %s", (project_id, business_no), fetch="one")
+    return row[0] if row else None
+
+
+def get_letter_link(code: str) -> dict | None:
+    row, _ = _run("SELECT code, project_id, business_no, doc_no, issued_at, expires_at FROM letter_links WHERE code = %s",
+                  (code,), fetch="one")
+    return _link_row(row) if row else None
+
+
+def get_or_create_letter_link(project_id: int, business_no: str, doc_no_for, today: date | None = None) -> dict:
+    """유효한 링크가 있으면 그대로, 없으면 새로 만든다. doc_no_for(seq) -> 문서번호 (seq = 그날 만든 링크 순번)."""
+    import secrets
+    today = today or date.today()
+    row, _ = _run("SELECT code, project_id, business_no, doc_no, issued_at, expires_at FROM letter_links "
+                  "WHERE project_id = %s AND business_no = %s AND expires_at >= %s ORDER BY issued_at DESC LIMIT 1",
+                  (project_id, business_no, today.isoformat()), fetch="one")
+    if row:
+        return _link_row(row)
+    count, _ = _run("SELECT COUNT(*) FROM letter_links WHERE issued_at = %s", (today.isoformat(),), fetch="one")
+    doc_no = doc_no_for(int(count[0] or 0) + 1)
+    expires = date.fromordinal(today.toordinal() + LETTER_LINK_DAYS)
+    for _ in range(5):  # 코드가 겹치면(거의 없음) 다시 뽑는다
+        code = "".join(secrets.choice(_CODE_CHARS) for _ in range(8))
+        if get_letter_link(code) is None:
+            break
+    _run("INSERT INTO letter_links (code, project_id, business_no, doc_no, issued_at, expires_at, created_at) "
+         "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+         (code, project_id, business_no, doc_no, today.isoformat(), expires.isoformat(), datetime.now(timezone.utc).isoformat()))
+    return {"code": code, "project_id": project_id, "business_no": business_no, "doc_no": doc_no,
+            "issued_at": today.isoformat(), "expires_at": expires.isoformat()}
 
 
 def source_pdf_path(business_no: str) -> str:

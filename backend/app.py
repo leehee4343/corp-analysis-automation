@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from . import auth_middleware as auth
 from .auth_middleware import LoginMiddleware
-from .routers import category_list, companies, export, mailing, pdfs, projects, sales, upload, validation
+from .routers import category_list, companies, export, letter_page, mailing, pdfs, projects, sales, upload, validation
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 FRONTEND_INDEX = FRONTEND_DIR / "index.html"
@@ -28,6 +28,7 @@ app.include_router(projects.router)
 app.include_router(pdfs.router)
 app.include_router(export.router)
 app.include_router(sales.router)
+app.include_router(letter_page.router)  # 공문(HTML) 공유 화면 /l/{code} — 로그인 없이
 
 
 @app.get("/")

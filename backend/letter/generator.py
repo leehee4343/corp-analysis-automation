@@ -340,69 +340,59 @@ def _rewrite_runs(paragraph, segments: list[tuple[str, str]], styles: dict) -> N
         r.text = text
 
 
-def render_letter(c: Company, *, doc_no: str, issued: date | None = None) -> bytes:
-    issued = issued or date.today()
-    prs = Presentation(str(TEMPLATE))
-    s1, s2 = prs.slides[0], prs.slides[1]
-    issued_text = f"{issued.year}. {issued.month}. {issued.day}."
-    addr = split_address(c.address)
-    name = short_name(c.company_name)
+@dataclass
+class Kpi:
+    label: str
+    value: str        # "-"이면 자료없음
+    unit: str
+    color: str        # NAVY | GREEN | ORANGE
+    sub: str          # 괄호 안 보조 문구
 
-    # ----- 1쪽: 문서번호 · 시행일자 · 수신
-    _set_text(_shape(s1, "Text 5"), doc_no)
-    _set_text(_shape(s1, "Text 7"), issued_text)
+
+@dataclass
+class RadarAxis:
+    label: str        # 성장성 등
+    grade: str | None  # 우수·양호·보통·보통 이하·낮음 (없으면 None)
+    score: int
+
+
+@dataclass
+class LetterData:
+    """공문 한 장에 들어가는 기업별 값. PPTX(render_letter)와 모바일 이미지(mobile.py)가 같이 쓴다."""
+    doc_no: str
+    issued_text: str
+    recipient_name: str
+    recipient_suffix: str     # " 대표이사 홍길동 귀하"
+    name: str                 # 짧은 기업명
+    industry: str
+    founded_text: str
+    location: str
+    basis_text: str           # KODATA · 2025년 결산 · …
+    radar: list[RadarAxis]
+    kpis: list[Kpi]
+    checks: list[Check]
+    counts: dict[str, int]
+    verdict: list[tuple[str, str]]
+
+
+def build_letter_data(c: Company, *, doc_no: str, issued: date | None = None) -> LetterData:
+    issued = issued or date.today()
+    addr = split_address(c.address)
     position = ((c.personal_info.get("name_position") or "").split("/") + [""])[1].strip()
     position = position or ("대표" if c.company_type == "개인사업자" else "대표이사")
     rep = (c.representative or "").strip()
-    _set_text(_shape(s1, "Text 9"), spaced_name(c.company_name), f" {position} {rep} 귀하" if rep else f" {position} 귀하")
 
-    # ----- 2쪽: 재무진단 요약
     year, revenue = _latest(c.income_summary.get("매출액"))
     _, op = _latest(c.income_summary.get("영업이익"))
     settle = (c.settlement_date or "")[:4] or year
-    _set_text(_shape(s2, "Text 7"), f"KODATA · {settle}년 결산 · 괄호: 전년 또는 업종평균" if settle else "KODATA · 괄호: 전년 또는 업종평균")
-    _fit_line(_shape(s2, "Text 9"), name)
-    _fit_line(_shape(s2, "Text 11"), pretty_industry(c.industry_name), lines=2)
-    _fit_line(_shape(s2, "Text 15"), addr.short)
     founded = (c.founded_date or "")[:4]
-    _set_text(_shape(s2, "Text 13"), f"{founded}년 (업력 {issued.year - int(founded)}년)" if founded.isdigit() else "-")
 
-    # 오각형 그래프 (재무진단 5개 항목)
     grades = c.diagnosis.model_dump() if c.diagnosis else {}
-    cats, scores = [], []
+    radar = []
     for key, label in RADAR_AXES:
         g = norm_grade(grades.get(key))
-        # 등급은 둘째 줄(괄호 중간에서 끊기지 않게). 맨 위 축(성장성)은 위 여백이 좁아 한 줄
-        cats.append(f"{label}({g or '자료없음'})" if key == "growth" else f"{label}\n({g or '자료없음'})")
-        scores.append(GRADE_SCORE.get(g, 0) if g else 0)
-    chart_data = CategoryChartData()
-    chart_data.categories = cats
-    chart_data.add_series(name, scores)
-    chart_data.add_series("동종업종 평균", [INDUSTRY_AVG_SCORE] * len(cats))
-    radar = _shape(s2, "radar")
-    radar.chart.replace_data(chart_data)
-    if not any(scores):
-        box = s2.shapes.add_textbox(radar.left, radar.top + radar.height // 2 - Pt(10), radar.width, Pt(20))
-        p = box.text_frame.paragraphs[0]
-        p.alignment = 2  # 가운데
-        run = p.add_run()
-        run.text = "재무진단 자료 없음"
-        run.font.size, run.font.bold = Pt(10), True
-        _color(run, "6B7A8E")
-    legend = _shape(s2, "Text 16")
-    lr = _runs(legend)
-    lr[1].text = name
-    _fit([lr[0], lr[1]], "━ " + name, legend.width / 12700 - 6)
-    # 등급 환산 안내(문단 3·4): 샘플 2줄 -> 우수·낮음을 더한 4줄
-    paras = legend.text_frame.paragraphs
-    for text in ("낮음 20", "보통 이하 40"):
-        paras[4]._p.addnext(copy.deepcopy(paras[4]._p))
-        legend.text_frame.paragraphs[5].runs[0].text = text
-    paras = legend.text_frame.paragraphs
-    paras[3].runs[0].text = "우수 90 · 양호 70"
-    paras[4].runs[0].text = "보통 50"
+        radar.append(RadarAxis(label, g, GRADE_SCORE.get(g, 0) if g else 0))
 
-    # KPI 5개
     prev_rev = _prev(c.income_summary.get("매출액"), year)
     prev_op = _prev(c.income_summary.get("영업이익"), year)
     rev_g = growth_rate(c, "매출액증가율", revenue, prev_rev)
@@ -417,41 +407,106 @@ def render_letter(c: Company, *, doc_no: str, issued: date | None = None) -> byt
         parts = [p for p in parts if p]
         return f"({' · '.join(parts)})" if parts else "(전년 자료없음)"
 
-    def kpi(value_shape, sub_shape, value, unit_text, color, sub):
-        sh = _shape(s2, value_shape)
-        runs = _runs(sh)
-        runs[0].text = value
-        if len(runs) > 1:
-            runs[1].text = unit_text if value != "-" else ""
-        for r in runs:
-            _color(r, color)
-        _set_text(_shape(s2, sub_shape), sub)
-
     def trend_color(g, neg=False):
         if neg or (g is not None and g <= -10):
             return ORANGE
         return GREEN if g is not None and g >= 0 else NAVY
 
-    kpi("Text 20", "Text 21", fmt_eok(revenue) if revenue is not None else "-", " 억원", trend_color(rev_g), paren_prev(prev_rev, rev_g))
-    kpi("Text 25", "Text 26", fmt_eok(op) if op is not None else "-", " 억원", trend_color(op_g, neg=op is not None and op < 0), paren_prev(prev_op, op_g))
-    debt_color = NAVY if debt is None else GREEN if debt <= (debt_avg if debt_avg is not None else 200) else ORANGE
-    kpi("Text 30", "Text 31", fmt_num(debt, 1) if debt is not None else "-", " %", debt_color,
-        f"(업종 {fmt_num(debt_avg, 1)}%)" if debt_avg is not None else "(업종 자료없음)")
-    cur_color = NAVY if current is None else GREEN if current >= (current_avg if current_avg is not None else 100) else NAVY if current >= 100 else ORANGE
-    kpi("Text 35", "Text 36", fmt_num(current, 1) if current is not None else "-", " %", cur_color,
-        f"(업종 {fmt_num(current_avg, 1)}%)" if current_avg is not None else "(업종 자료없음)")
     rank = grade_rank(c.credit_grade)
-    grade_color = NAVY if rank is None else GREEN if rank <= grade_rank("bb-") else NAVY if rank < grade_rank("ccc+") else ORANGE
-    kpi("Text 40", "Text 41", (c.credit_grade or "-").strip(), "", grade_color, "(KODATA)")
+    kpis = [
+        Kpi("매출액", fmt_eok(revenue) if revenue is not None else "-", "억원", trend_color(rev_g), paren_prev(prev_rev, rev_g)),
+        Kpi("영업이익", fmt_eok(op) if op is not None else "-", "억원", trend_color(op_g, neg=op is not None and op < 0),
+            paren_prev(prev_op, op_g)),
+        Kpi("부채비율", fmt_num(debt, 1) if debt is not None else "-", "%",
+            NAVY if debt is None else GREEN if debt <= (debt_avg if debt_avg is not None else 200) else ORANGE,
+            f"(업종 {fmt_num(debt_avg, 1)}%)" if debt_avg is not None else "(업종 자료없음)"),
+        Kpi("유동비율", fmt_num(current, 1) if current is not None else "-", "%",
+            NAVY if current is None else GREEN if current >= (current_avg if current_avg is not None else 100)
+            else NAVY if current >= 100 else ORANGE,
+            f"(업종 {fmt_num(current_avg, 1)}%)" if current_avg is not None else "(업종 자료없음)"),
+        Kpi("신용등급", (c.credit_grade or "-").strip(), "",
+            NAVY if rank is None else GREEN if rank <= grade_rank("bb-") else NAVY if rank < grade_rank("ccc+") else ORANGE,
+            "(KODATA)"),
+    ]
+    checks = build_checks(c, addr, debt, debt_avg, current, icr, equity)
+    return LetterData(
+        doc_no=doc_no, issued_text=f"{issued.year}. {issued.month}. {issued.day}.",
+        recipient_name=spaced_name(c.company_name),
+        recipient_suffix=f" {position} {rep} 귀하" if rep else f" {position} 귀하",
+        name=short_name(c.company_name), industry=pretty_industry(c.industry_name),
+        founded_text=f"{founded}년 (업력 {issued.year - int(founded)}년)" if founded.isdigit() else "-",
+        location=addr.short,
+        basis_text=f"KODATA · {settle}년 결산 · 괄호: 전년 또는 업종평균" if settle else "KODATA · 괄호: 전년 또는 업종평균",
+        radar=radar, kpis=kpis, checks=checks,
+        counts={k: sum(ch.judgment == k for ch in checks) for k in JUDGE_STYLE},
+        verdict=verdict_segments(checks),
+    )
+
+
+def render_letter(c: Company, *, doc_no: str, issued: date | None = None) -> bytes:
+    d = build_letter_data(c, doc_no=doc_no, issued=issued)
+    prs = Presentation(str(TEMPLATE))
+    s1, s2 = prs.slides[0], prs.slides[1]
+
+    # ----- 1쪽: 문서번호 · 시행일자 · 수신
+    _set_text(_shape(s1, "Text 5"), d.doc_no)
+    _set_text(_shape(s1, "Text 7"), d.issued_text)
+    _set_text(_shape(s1, "Text 9"), d.recipient_name, d.recipient_suffix)
+
+    # ----- 2쪽: 재무진단 요약
+    _set_text(_shape(s2, "Text 7"), d.basis_text)
+    _fit_line(_shape(s2, "Text 9"), d.name)
+    _fit_line(_shape(s2, "Text 11"), d.industry, lines=2)
+    _fit_line(_shape(s2, "Text 15"), d.location)
+    _set_text(_shape(s2, "Text 13"), d.founded_text)
+
+    # 오각형 그래프 (재무진단 5개 항목). 등급은 둘째 줄(괄호 중간에서 끊기지 않게), 맨 위 축(성장성)은 위 여백이 좁아 한 줄
+    cats = [f"{a.label}({a.grade or '자료없음'})" if i == 0 else f"{a.label}\n({a.grade or '자료없음'})"
+            for i, a in enumerate(d.radar)]
+    chart_data = CategoryChartData()
+    chart_data.categories = cats
+    chart_data.add_series(d.name, [a.score for a in d.radar])
+    chart_data.add_series("동종업종 평균", [INDUSTRY_AVG_SCORE] * len(cats))
+    radar = _shape(s2, "radar")
+    radar.chart.replace_data(chart_data)
+    if not any(a.score for a in d.radar):
+        box = s2.shapes.add_textbox(radar.left, radar.top + radar.height // 2 - Pt(10), radar.width, Pt(20))
+        p = box.text_frame.paragraphs[0]
+        p.alignment = 2  # 가운데
+        run = p.add_run()
+        run.text = "재무진단 자료 없음"
+        run.font.size, run.font.bold = Pt(10), True
+        _color(run, "6B7A8E")
+    legend = _shape(s2, "Text 16")
+    lr = _runs(legend)
+    lr[1].text = d.name
+    _fit([lr[0], lr[1]], "━ " + d.name, legend.width / 12700 - 6)
+    # 등급 환산 안내(문단 3·4): 샘플 2줄 -> 우수·낮음을 더한 4줄
+    paras = legend.text_frame.paragraphs
+    for text in ("낮음 20", "보통 이하 40"):
+        paras[4]._p.addnext(copy.deepcopy(paras[4]._p))
+        legend.text_frame.paragraphs[5].runs[0].text = text
+    paras = legend.text_frame.paragraphs
+    paras[3].runs[0].text = "우수 90 · 양호 70"
+    paras[4].runs[0].text = "보통 50"
+
+    # KPI 5개 (값·단위 도형, 괄호 도형)
+    kpi_shapes = [("Text 20", "Text 21"), ("Text 25", "Text 26"), ("Text 30", "Text 31"), ("Text 35", "Text 36"), ("Text 40", "Text 41")]
+    for k, (value_shape, sub_shape) in zip(d.kpis, kpi_shapes):
+        runs = _runs(_shape(s2, value_shape))
+        runs[0].text = k.value
+        if len(runs) > 1:
+            runs[1].text = f" {k.unit}" if k.value != "-" and k.unit else ""
+        for r in runs:
+            _color(r, k.color)
+        _set_text(_shape(s2, sub_shape), k.sub)
 
     # ----- 지원조건 점검 결과
-    checks = build_checks(c, addr, debt, debt_avg, current, icr, equity)
-    counts = {k: sum(ch.judgment == k for ch in checks) for k in JUDGE_STYLE}
-    _set_text(_shape(s2, "Text 50"), f"✓ 충족 {counts['충족']}")
-    _set_text(_shape(s2, "Text 48"), f"? 확인 필요 {counts['확인 필요']}")
-    _set_text(_shape(s2, "Text 46"), f"! 보완 필요 {counts['보완 필요']}")
+    _set_text(_shape(s2, "Text 50"), f"✓ 충족 {d.counts['충족']}")
+    _set_text(_shape(s2, "Text 48"), f"? 확인 필요 {d.counts['확인 필요']}")
+    _set_text(_shape(s2, "Text 46"), f"! 보완 필요 {d.counts['보완 필요']}")
     table = _shape(s2, "Table 0").table
-    for row, ch in zip(list(table.rows)[1:], checks):
+    for row, ch in zip(list(table.rows)[1:], d.checks):
         cells = row.cells
         cells[0].text_frame.paragraphs[0].runs[0].text = ch.label
         cells[1].text_frame.paragraphs[0].runs[0].text = ch.status
@@ -467,9 +522,9 @@ def render_letter(c: Company, *, doc_no: str, issued: date | None = None) -> byt
     verdict = _shape(s2, "Text 54").text_frame.paragraphs[0]
     vr = verdict.runs
     styles = {"normal": vr[0]._r.rPr, "bold": vr[1]._r.rPr, "green": vr[3]._r.rPr}
-    _rewrite_runs(verdict, verdict_segments(checks), styles)
+    _rewrite_runs(verdict, d.verdict, styles)
 
-    _shape(s2, "Text 94").text_frame.paragraphs[0].runs[0].text = f"{issued_text}   "
+    _shape(s2, "Text 94").text_frame.paragraphs[0].runs[0].text = f"{d.issued_text}   "
 
     buf = io.BytesIO()
     prs.save(buf)

@@ -211,6 +211,7 @@ select.form-control, .filter-select, .select-per-page{appearance:none; padding-r
 :is(.btn-critical-primary, .btn-primary, .btn-search-main, .btn-secondary, .btn-reset-main, .btn-delete):disabled{opacity:.55; cursor:not-allowed;}
 .icon-excel{color:#16a34a;}
 .icon-ppt{color:#c2410c;}
+.icon-image{color:#2563eb;}
 
 /* 표 안 행 액션 · 파일 액션 (5.4) */
 :is(.btn-task-register, .btn-task-progress, .btn-task-done, .btn-file-preview, .btn-file-download){
@@ -704,6 +705,8 @@ body.modal-open{overflow:hidden;}
             <button type="button" class="btn-secondary" id="salesColumns">열 설정</button>
             <button type="button" class="btn-secondary" data-chart-export="sales"><svg class="icon-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="m9 12 6 6"/><path d="m15 12-6 6"/></svg>엑셀 다운로드</button>
             <button type="button" class="btn-secondary" id="salesLetters" title="선택한 기업의 공문을 PPT로 받습니다(여러 기업은 ZIP)"><svg class="icon-ppt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 18v-6h3a2 2 0 0 1 0 4H9"/></svg>공문 다운로드</button>
+            <button type="button" class="btn-secondary" id="salesLetterImages" title="선택한 기업의 공문을 세로로 긴 이미지(PNG) 한 장으로 받습니다(여러 기업은 ZIP)"><svg class="icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>이미지 다운로드</button>
+            <button type="button" class="btn-secondary" id="salesLetterMobile" title="선택한 기업의 공문을 스마트폰 화면에 맞춘 세로 이미지로 받습니다(여러 기업은 ZIP)"><svg class="icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>이미지(모바일용) 다운로드</button>
           </div>
         </div>
         <div class="table-bulk-row" id="salesBulk">
@@ -1509,6 +1512,9 @@ function initSales(){
       // 메모가 있으면 한 단계 강조(진행중 버튼) + 마우스를 올리면 내용 미리보기
       {key:'memo', label:'메모', render:r => `<button type="button" class="${r.memo ? 'btn-task-progress' : 'btn-task-done'}" data-sales-memo="${esc(salesKey(r))}"
         ${r.memo ? `title="${esc(r.memo.length > 120 ? r.memo.slice(0, 120) + '…' : r.memo)}"` : ''} aria-label="${esc(r.company_name)} 메모${r.memo ? ' 보기' : ' 입력'}">${r.memo ? '메모 보기' : '메모'}</button>`},
+      // 공문(HTML): 기업 담당자에게 보낼 공문 화면을 새 창으로(짧은 주소, 로그인 없이 열림, 90일 유효)
+      {key:'letter', label:'공문', render:r => `<button type="button" class="btn-file-preview" data-sales-letter="${esc(salesKey(r))}"
+        aria-label="${esc(r.company_name)} 공문(HTML) 새 창으로 보기">공문(HTML)</button>`},
     ],
   });
   salesGrid.attachColumnMenu(document.getElementById('salesColumns'));
@@ -1532,6 +1538,8 @@ function initSales(){
   grid.addEventListener('click', e => {
     const btn = e.target.closest('[data-sales-memo]');
     if(btn) openSalesMemo(btn.dataset.salesMemo);
+    const letterBtn = e.target.closest('[data-sales-letter]');
+    if(letterBtn) openSalesLetter(letterBtn.dataset.salesLetter, letterBtn);
   });
   document.getElementById('salesFilter').addEventListener('submit', e => {
     e.preventDefault();
@@ -1563,7 +1571,9 @@ function initSales(){
     saveSales([...salesState.selected], changes, btn, true);
   }));
   // 요약 카드를 누르면 그 조건으로 목록을 거른다
-  document.getElementById('salesLetters').addEventListener('click', e => downloadSalesLetters(e.currentTarget));
+  document.getElementById('salesLetters').addEventListener('click', e => downloadSalesLetters(e.currentTarget, 'pptx'));
+  document.getElementById('salesLetterImages').addEventListener('click', e => downloadSalesLetters(e.currentTarget, 'image'));
+  document.getElementById('salesLetterMobile').addEventListener('click', e => downloadSalesLetters(e.currentTarget, 'mobile'));
   document.getElementById('salesKpis').addEventListener('click', e => {
     const card = e.target.closest('[data-sales-filter]');
     if(!card) return;
@@ -1704,16 +1714,25 @@ function openSalesMemo(key){
   count();
   setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 50);
 }
-// 공문 다운로드: 선택한 기업의 공문을 PPT로(1개면 공문_기업명.pptx, 여러 개면 ZIP). 문서번호 일련번호는 목록 순서
-async function downloadSalesLetters(btn){
+// 공문 다운로드(kind='pptx') · 이미지 다운로드(kind='image', 1·2쪽을 세로로 이은 PNG 한 장) ·
+// 이미지(모바일용) 다운로드(kind='mobile', 스마트폰 폭에 맞춰 다시 배치한 PNG).
+// 1개면 공문_기업명.pptx/png, 여러 개면 ZIP. 문서번호 일련번호는 목록 순서
+const LETTER_KINDS = {
+  pptx:{url:'/api/sales/letters', max:500, busy:'공문 만드는 중', fallback:'공문.zip'},
+  image:{url:'/api/sales/letter-images', max:100, busy:'이미지 만드는 중', fallback:'공문이미지.zip'},
+  mobile:{url:'/api/sales/letter-mobile-images', max:100, busy:'모바일 이미지 만드는 중', fallback:'공문모바일.zip'},
+};
+async function downloadSalesLetters(btn, kind){
+  const conf = LETTER_KINDS[kind];
   const items = salesState.items.filter(r => salesState.selected.has(salesKey(r)))
     .map(r => ({project_id:r.project_id, business_no:r.business_no}));
   if(!items.length){ showToast('warning', '공문을 받을 기업을 목록에서 선택하세요.'); return; }
+  if(items.length > conf.max){ showToast('warning', `한 번에 ${conf.max}개 기업까지 받을 수 있습니다. 선택을 줄여 주세요.`); return; }
   const label = btn.lastChild.textContent;
-  btn.disabled = true;
-  btn.lastChild.textContent = `공문 만드는 중 (${items.length.toLocaleString('ko-KR')}개)`;
+  document.querySelectorAll('#salesLetters, #salesLetterImages, #salesLetterMobile').forEach(b => { b.disabled = true; });
+  btn.lastChild.textContent = `${conf.busy} (${items.length.toLocaleString('ko-KR')}개)`;
   try{
-    const res = await fetch('/api/sales/letters', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({items})});
+    const res = await fetch(conf.url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({items})});
     if(res.status === 401){ location.replace('/login'); return; }
     if(!res.ok){
       let detail = null;
@@ -1722,12 +1741,30 @@ async function downloadSalesLetters(btn){
     }
     const blob = await res.blob();
     const encoded = (res.headers.get('Content-Disposition') || '').split("''")[1];
-    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download: encoded ? decodeURIComponent(encoded) : '공문.zip'});
+    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download: encoded ? decodeURIComponent(encoded) : conf.fallback});
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     showToast('success', `${items.length.toLocaleString('ko-KR')}개 기업의 공문을 내려받았습니다.`);
   }catch(err){ showToast('danger', err.message); }
-  finally{ btn.disabled = false; btn.lastChild.textContent = label; }
+  finally{
+    document.querySelectorAll('#salesLetters, #salesLetterImages, #salesLetterMobile').forEach(b => { b.disabled = false; });
+    btn.lastChild.textContent = label;
+  }
+}
+// 공문(HTML) 새 창: 팝업 차단을 피하려고 클릭 즉시 빈 창을 열고, 링크를 받은 뒤 그 창을 공문 주소로 보낸다
+async function openSalesLetter(key, btn){
+  const [pid, bn] = key.split('|');
+  const win = window.open('', '_blank');
+  if(win) win.document.write('<p style="font-family:sans-serif;color:#5A6B82;padding:24px">공문을 여는 중입니다…</p>');
+  btn.disabled = true;
+  try{
+    const link = await api(`/api/sales/${pid}/${encodeURIComponent(bn)}/letter-link`, {method:'POST'});
+    if(win){ win.opener = null; win.location.replace(link.url); }
+    else showToast('warning', `팝업이 차단되었습니다. 이 주소를 여세요: ${link.url}`);
+  }catch(err){
+    if(win) win.close();
+    showToast('danger', `공문을 열지 못했습니다. ${err.message}`);
+  }finally{ btn.disabled = false; }
 }
 async function saveSales(keys, changes, control, bulk = false){
   if(!keys.length) return;

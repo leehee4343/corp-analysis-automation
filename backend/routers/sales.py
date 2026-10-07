@@ -1,4 +1,4 @@
-"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부, 승인/거절 결과, 메모, 등급별 분류(S·A·B·C), 공문(PPTX) 다운로드.
+"""영업 관리: 프로젝트 참여 기업별 우편(DM) 발송 여부, 승인/거절 결과, 메모, 등급별 분류(S·A·B·C), 공문(PPTX·이미지) 다운로드.
 
 목록은 프로젝트 참여 명단 전체를 한 번에 돌려주고(수백 건 규모) 검색·필터·페이징은 화면에서 한다(PDF 목록과 같은 방식).
 """
@@ -11,12 +11,14 @@ from datetime import date
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from .. import storage
+from .. import auth_middleware, storage
 from ..letter import generator as letter
+from ..letter import image as letter_image
+from ..letter import mobile as letter_mobile
 
 router = APIRouter(prefix="/api", tags=["sales"])
 
@@ -105,11 +107,14 @@ def _attachment(filename: str) -> dict:
     return {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
 
 
-@router.post("/sales/letters")
-def download_letters(data: LetterRequest):
-    """선택한 기업의 공문(PPTX). 1개면 '공문_기업명.pptx', 여러 개면 기업별 파일을 묶은 ZIP.
-    문서번호의 일련번호는 요청 순서(화면 목록 순서)를 따른다."""
-    targets = list(dict.fromkeys((t.project_id, t.business_no) for t in data.items))  # 순서 유지 중복 제거
+class LetterImageRequest(BaseModel):
+    items: list[SalesTarget] = Field(min_length=1, max_length=100)  # 이미지 변환은 기업당 수 초 걸린다
+
+
+def _build_letters(items: list[SalesTarget], render=letter.render_letter) -> tuple[date, list[tuple[str, bytes]]]:
+    """[(파일명(확장자 없음), render 결과)]. 파일명은 '공문_기업명', 문서번호 일련번호는 요청 순서(화면 목록 순서).
+    render(company, doc_no=, issued=): 공문 PPTX(기본) 또는 모바일 이미지."""
+    targets = list(dict.fromkeys((t.project_id, t.business_no) for t in items))  # 순서 유지 중복 제거
     tiers: dict[tuple[int, str], str | None] = {}
     for pid in {pid for pid, _ in targets}:
         tiers.update({(r["project_id"], r["business_no"]): r["tier"] for r in storage.list_sales(pid)})
@@ -127,13 +132,56 @@ def download_letters(data: LetterRequest):
         if name in used:  # 같은 기업명이 여러 프로젝트에서 선택된 경우
             name = f"{name}_{company.business_no}"
         used.add(name)
-        content = letter.render_letter(company, doc_no=letter.doc_number(issued, tiers[key], seq), issued=issued)
-        files.append((f"{name}.pptx", content))
+        files.append((name, render(company, doc_no=letter.doc_number(issued, tiers[key], seq), issued=issued)))
+    return issued, files
+
+
+def _single_or_zip(files: list[tuple[str, bytes]], media_type: str, zip_name: str) -> Response:
     if len(files) == 1:
-        return Response(files[0][1], media_type=PPTX, headers=_attachment(files[0][0]))
+        return Response(files[0][1], media_type=media_type, headers=_attachment(files[0][0]))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for filename, content in files:
             zf.writestr(filename, content)
-    return Response(buf.getvalue(), media_type="application/zip",
-                    headers=_attachment(f"공문_{len(files)}개기업_{issued:%Y%m%d}.zip"))
+    return Response(buf.getvalue(), media_type="application/zip", headers=_attachment(zip_name))
+
+
+@router.post("/sales/letters")
+def download_letters(data: LetterRequest):
+    """선택한 기업의 공문(PPTX). 1개면 '공문_기업명.pptx', 여러 개면 기업별 파일을 묶은 ZIP."""
+    issued, files = _build_letters(data.items)
+    return _single_or_zip([(f"{n}.pptx", c) for n, c in files], PPTX, f"공문_{len(files)}개기업_{issued:%Y%m%d}.zip")
+
+
+@router.post("/sales/letter-images")
+def download_letter_images(data: LetterImageRequest):
+    """선택한 기업의 공문을 세로로 긴 PNG 한 장으로(1·2쪽을 위아래로 이음). 1개면 '공문_기업명.png', 여러 개면 ZIP."""
+    issued, files = _build_letters(data.items)
+    try:
+        pngs = letter_image.pptx_to_long_pngs([c for _, c in files])
+    except letter_image.ImageConversionError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    return _single_or_zip([(f"{n}.png", png) for (n, _), png in zip(files, pngs)], "image/png",
+                          f"공문이미지_{len(files)}개기업_{issued:%Y%m%d}.zip")
+
+
+@router.post("/sales/letter-mobile-images")
+def download_letter_mobile_images(data: LetterImageRequest):
+    """선택한 기업의 공문을 스마트폰 폭에 맞춰 다시 배치한 세로 PNG(폭 1080px). 1개면 '공문_기업명_모바일.png',
+    여러 개면 ZIP. PowerPoint·LibreOffice 없이 직접 그린다(backend/letter/mobile.py)."""
+    issued, files = _build_letters(data.items, render=letter_mobile.render_mobile_png)
+    return _single_or_zip([(f"{n}_모바일.png", png) for n, png in files], "image/png",
+                          f"공문모바일_{len(files)}개기업_{issued:%Y%m%d}.zip")
+
+
+@router.post("/sales/{project_id}/{business_no}/letter-link")
+def create_letter_link(project_id: int, business_no: str, request: Request):
+    """공문(HTML) 공유 링크(짧은 주소). 유효한 링크가 있으면 그대로 돌려주고, 없으면 새로 만든다(90일 유효).
+    문서번호는 만든 날 기준: FS-연도-월일-{등급 분류}{그날 링크 순번}."""
+    if not storage.is_project_member(project_id, business_no):
+        raise HTTPException(status_code=404, detail="해당 프로젝트의 참여 기업이 아닙니다.")
+    tier = storage.sales_tier(project_id, business_no)
+    today = date.today()
+    link = storage.get_or_create_letter_link(project_id, business_no, lambda seq: letter.doc_number(today, tier, seq), today)
+    scheme = "https" if auth_middleware.is_https(request) else request.url.scheme
+    return {**link, "url": f"{scheme}://{request.url.netloc}/l/{link['code']}"}
