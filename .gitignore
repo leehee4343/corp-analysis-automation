@@ -29,3 +29,11 @@ tests/sample_pdfs/*.pdf
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Local assistant and test-run artifacts
+/.claude/
+/.tmp*/
+
+# Local reference files (not deployment artifacts)
+/배포용 URL.txt
+/공문_샘플.pptx

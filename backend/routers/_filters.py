@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
+
+from fastapi import HTTPException
 
 
 @dataclass
@@ -23,3 +26,33 @@ class MetricRanges:
             "net_income": (self.net_income_from, self.net_income_to),
             "debt_ratio": (self.debt_ratio_from, self.debt_ratio_to),
         }
+
+
+METRIC_LABELS = {
+    "revenue": "매출액",
+    "operating_profit": "영업이익",
+    "net_income": "당기순이익",
+    "debt_ratio": "부채비율",
+}
+
+
+def validate_metric_ranges(
+    ranges: MetricRanges,
+    *,
+    revenue_min: float | None = None,
+    revenue_max: float | None = None,
+) -> dict[str, tuple[float | None, float | None]]:
+    """목록 API가 받는 모든 숫자 범위를 같은 규칙으로 검증한다.
+
+    빈 값은 제한 없음으로 두고 0과 음수는 유효한 숫자로 보존한다. 구형
+    revenue_min/revenue_max 쿼리도 외부 호출 호환성을 위해 같은 검증을 적용한다.
+    """
+    pairs = [("매출액", revenue_min, revenue_max)]
+    pairs.extend((METRIC_LABELS[key], lo, hi) for key, (lo, hi) in ranges.as_dict().items())
+    for label, minimum, maximum in pairs:
+        for value in (minimum, maximum):
+            if value is not None and not math.isfinite(value):
+                raise HTTPException(status_code=422, detail=f"{label}에는 유효한 숫자를 입력해 주세요.")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise HTTPException(status_code=422, detail=f"{label} 최소값은 최대값보다 클 수 없습니다.")
+    return ranges.as_dict()

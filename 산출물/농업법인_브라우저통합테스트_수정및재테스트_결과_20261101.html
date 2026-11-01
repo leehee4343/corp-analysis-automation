@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>농업법인 영업관리 프로그램 브라우저 통합 테스트 수정 및 재테스트 결과서</title>
+  <style>
+    :root { --navy:#183153; --blue:#2366a8; --pale:#eef5fb; --line:#ccd7e2; --green:#17803d; --amber:#9a6700; --gray:#5d6875; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f4f6f8; color:#202a35; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; line-height:1.65; }
+    main { width:min(1120px,calc(100% - 32px)); margin:32px auto; background:#fff; box-shadow:0 4px 22px #18315318; }
+    header { padding:46px 54px 38px; color:#fff; background:linear-gradient(125deg,var(--navy),var(--blue)); }
+    header h1 { margin:8px 0 10px; font-size:30px; line-height:1.35; }
+    header p { margin:0; opacity:.9; }
+    .doc-meta { letter-spacing:.08em; font-size:13px; }
+    section { padding:34px 54px; border-bottom:1px solid #e5eaf0; }
+    h2 { margin:0 0 18px; color:var(--navy); font-size:22px; }
+    h3 { margin:24px 0 10px; color:#294761; font-size:17px; }
+    p { margin:8px 0; }
+    .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px; }
+    .card { padding:18px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .card strong { display:block; color:var(--green); font-size:22px; }
+    .status { display:inline-block; padding:3px 9px; border-radius:999px; color:#fff; background:var(--green); font-size:12px; font-weight:700; }
+    .note { padding:14px 16px; border-left:4px solid var(--blue); background:var(--pale); }
+    table { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:14px; }
+    th,td { padding:10px 12px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:#fff; background:#315b7e; }
+    tbody tr:nth-child(even) { background:#f8fafc; }
+    code { padding:2px 5px; border-radius:4px; background:#edf1f5; font-family:Consolas,monospace; font-size:13px; }
+    ul { margin:8px 0; padding-left:22px; }
+    .muted { color:var(--gray); }
+    footer { padding:24px 54px; color:#617081; background:#f5f7f9; font-size:13px; }
+    @media (max-width:760px) { header,section,footer { padding-left:24px; padding-right:24px; } .summary { grid-template-columns:1fr 1fr; } table { display:block; overflow-x:auto; } }
+    @media print { body { background:#fff; } main { width:100%; margin:0; box-shadow:none; } section { break-inside:avoid; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="doc-meta">수정 및 재테스트 결과서 · 2026-11-01</div>
+    <h1>농업법인 영업관리 프로그램<br>브라우저 통합 테스트</h1>
+    <p>기존 브라우저 통합 테스트에서 발견된 결함의 원인 분석, 소스 수정 및 회귀 테스트 결과</p>
+  </header>
+
+  <section>
+    <h2>1. 종합 결과</h2>
+    <p>확정 결함 D001과 D002를 소스 수준에서 수정하고 브라우저 및 자동 회귀 테스트를 완료하였다. 두 결함 모두 재현 시나리오에서 정상 처리되며 관련 자동 테스트 180건이 모두 통과하였다.</p>
+    <div class="summary">
+      <div class="card"><span>D001</span><strong>PASS</strong>범위 역전 검증</div>
+      <div class="card"><span>D002</span><strong>PASS</strong>반응형 가로 넘침</div>
+      <div class="card"><span>자동 테스트</span><strong>180/180</strong>전체 통과</div>
+      <div class="card"><span>해상도 점검</span><strong>5/5</strong>가로 넘침 없음</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 결함 수정 및 재테스트</h2>
+    <h3>D001 — 숫자 범위 최소값/최대값 역전</h3>
+    <table>
+      <tr><th style="width:18%">구분</th><th>내용</th></tr>
+      <tr><td>원인</td><td>기업목록 및 업종별 목록의 공통 검색 폼에 최소값 ≤ 최대값 검증이 없었고, API도 역전 범위를 그대로 수용하였다. 레거시 매출 범위 필터는 결측값을 0으로 간주하고 최대값을 배타적으로 비교하는 불일치도 있었다.</td></tr>
+      <tr><td>수정</td><td>네 가지 지표(매출액, 영업이익, 당기순이익, 부채비율)에 공통 범위 검증을 추가했다. 화면은 요청 전에 검색을 차단하고 인라인 오류 및 <code>aria-invalid</code>를 표시한다. API는 비정상 범위와 비유한 숫자를 HTTP 422로 거부한다. 빈값, 0, 음수, 단일 경계 및 동일 경계는 유효하게 유지했다.</td></tr>
+      <tr><td>재테스트</td><td>기업목록 1,000~0 입력 시 네트워크 요청 수 6→6, 업종별 영업이익 1,000~0 입력 시 3→3으로 요청이 발생하지 않았다. 0~0으로 정정하면 요청이 정상 발생했다. 직접 API 호출도 역전 범위 422, 동일 0 범위 200, 음수 영업이익 범위 200을 확인했다.</td></tr>
+      <tr><td>판정</td><td><span class="status">PASS</span></td></tr>
+    </table>
+
+    <h3>D002 — 영업관리 화면의 소형 화면 가로 넘침</h3>
+    <table>
+      <tr><th style="width:18%">구분</th><th>내용</th></tr>
+      <tr><td>원인</td><td>270px 사이드바가 문서 흐름 안에서 본문 폭을 차지하고 헤더·선택 상자·범위 입력에 고정 폭이 적용되어 소형 화면에서 전체 페이지 폭을 밀어냈다.</td></tr>
+      <tr><td>수정</td><td>1,100px 이하에서 사이드바를 본문 폭과 독립된 오버레이로 전환하고 기본 접힘 상태를 적용했다. 헤더·카드·버튼·필터를 유동형으로 바꾸고, 데이터 표의 넓은 열은 페이지가 아니라 표 컨테이너 내부에서 스크롤되도록 유지했다.</td></tr>
+      <tr><td>재테스트</td><td>390×844, 768×1024, 1024×768, 1366×768, 1920×1080 해상도에서 접힘/펼침 동작과 문서 폭을 측정했다. 모든 해상도에서 페이지 가로 넘침이 없었으며 데스크톱 사이드바 동작도 유지됐다.</td></tr>
+      <tr><td>판정</td><td><span class="status">PASS</span></td></tr>
+    </table>
+
+    <table>
+      <thead><tr><th>뷰포트</th><th>문서 폭</th><th>본문 폭</th><th>표 내부 스크롤</th><th>페이지 가로 넘침</th></tr></thead>
+      <tbody>
+        <tr><td>390×844</td><td>375px</td><td>375px</td><td>정상</td><td>없음</td></tr>
+        <tr><td>768×1024</td><td>753px</td><td>753px</td><td>정상</td><td>없음</td></tr>
+        <tr><td>1024×768</td><td>1009px</td><td>1009px</td><td>정상</td><td>없음</td></tr>
+        <tr><td>1366×768</td><td>1351px</td><td>1263px(접힘)</td><td>정상</td><td>없음</td></tr>
+        <tr><td>1920×1080</td><td>1905px</td><td>1817px(접힘)</td><td>정상</td><td>없음</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. 미확정 관찰 항목 분석</h2>
+    <h3>다운로드</h3>
+    <p>브라우저에서 파일 응답 본문, MIME 형식, <code>Content-Disposition</code>, 파일 시그니처를 검증했다. 기존의 “다운로드 완료 미관찰”은 제품 결함이 아니라 자동화 환경에서 브라우저 다운로드 이벤트를 직접 관찰하지 못한 제한으로 판정한다.</p>
+    <table>
+      <thead><tr><th>항목</th><th>HTTP</th><th>크기</th><th>파일 시그니처</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td>PPTX</td><td>200</td><td>131,422 bytes</td><td>ZIP / 504b0304</td><td>정상</td></tr>
+        <tr><td>긴 이미지 PNG</td><td>200</td><td>831,524 bytes</td><td>PNG / 89504e47</td><td>정상</td></tr>
+        <tr><td>모바일 PNG</td><td>200</td><td>1,125,327 bytes</td><td>PNG / 89504e47</td><td>정상</td></tr>
+        <tr><td>대시보드 Excel</td><td>200</td><td>5,317 bytes</td><td>ZIP / 504b0304</td><td>정상</td></tr>
+      </tbody>
+    </table>
+    <h3>명세 대조</h3>
+    <table>
+      <thead><tr><th>관찰 항목</th><th>명세 분석</th><th>조치</th></tr></thead>
+      <tbody>
+        <tr><td>기업 주소 검색</td><td>FN-066 검색 대상은 기업명과 사업자등록번호이며 주소 검색은 정의되지 않음</td><td>기능 추가 안 함</td></tr>
+        <tr><td>영업관리 표 헤더 정렬</td><td>기능명세 및 현행 열 정의에 사용자 정렬 기능이 없음</td><td>기능 추가 안 함</td></tr>
+        <tr><td>우편발송 역순 정렬</td><td>FN-094는 우편번호 오름차순 고정이며 사용자 정렬을 제공하지 않음</td><td>현행 유지</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. 자동 회귀 테스트</h2>
+    <table>
+      <thead><tr><th>구분</th><th>범위</th><th>결과</th></tr></thead>
+      <tbody>
+        <tr><td>집중 테스트</td><td>기업 API, 업종별 목록 API, 프런트엔드 계약 테스트</td><td>55 passed</td></tr>
+        <tr><td>전체 회귀 테스트</td><td>프로젝트 전체 pytest 테스트</td><td>180 passed</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">전체 테스트의 경고 1건은 Starlette TestClient의 httpx 사용 방식에 대한 기존 deprecation 경고이며 이번 수정의 실패가 아니다.</p>
+  </section>
+
+  <section>
+    <h2>5. 변경 파일</h2>
+    <ul>
+      <li><code>backend/routers/_filters.py</code> — 공통 지표 범위 검증</li>
+      <li><code>backend/routers/companies.py</code> — 기업목록 API 검증 연결</li>
+      <li><code>backend/routers/category_list.py</code> — 업종별 목록 API 검증 연결</li>
+      <li><code>backend/storage.py</code> — 레거시 매출 범위의 결측·경계 처리 정합화</li>
+      <li><code>frontend/index.html</code> — 인라인 검증, 접근성 속성, 반응형 레이아웃 및 사이드바 동작</li>
+      <li><code>tests/test_api.py</code>, <code>tests/test_category_list.py</code> — 범위 경계 회귀 테스트</li>
+      <li><code>tests/test_frontend_contract.py</code> — 화면 검증 및 반응형 계약 테스트</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. 테스트 제약 및 후속 확인</h2>
+    <div class="note">
+      <ul>
+        <li>연결형 브라우저 제어 호스트를 사용할 수 없어 실제 Microsoft Edge를 헤드리스 CDP 방식으로 실행했다.</li>
+        <li>모바일 항목은 실제 단말이 아닌 브라우저 뷰포트 기반 테스트다.</li>
+        <li>기존 운영 데이터 및 PDF는 변경·삭제하지 않았고, 자동 테스트는 임시 SQLite 데이터베이스에서 수행했다.</li>
+        <li>다운로드는 브라우저 저장 완료 UI 대신 HTTP 응답과 실제 파일 바이트를 검증했다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>문서명: 농업법인_브라우저통합테스트_수정및재테스트_결과_20261101.html · 기존 브라우저 통합 테스트 결과서와 별도 관리</footer>
+</main>
+</body>
+</html>

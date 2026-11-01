@@ -90,6 +90,46 @@ def test_filter_by_grade_band_and_revenue(client):
     assert res.json()["items"][0]["company_name"] == "옥산농원"
 
 
+@pytest.mark.parametrize("field", ["revenue", "operating_profit", "net_income", "debt_ratio"])
+def test_metric_range_rejects_reversed_min_max(client, field):
+    res = client.get("/api/companies", params={f"{field}_from": 1000, f"{field}_to": 0})
+    assert res.status_code == 422
+    assert "최소값은 최대값보다 클 수 없습니다" in res.json()["detail"]
+
+
+def test_legacy_revenue_range_rejects_reversed_min_max(client):
+    res = client.get("/api/companies", params={"revenue_min": 1000, "revenue_max": 0})
+    assert res.status_code == 422
+    assert res.json()["detail"] == "매출액 최소값은 최대값보다 클 수 없습니다."
+
+
+@pytest.mark.parametrize("field", ["revenue", "operating_profit", "net_income", "debt_ratio"])
+def test_metric_range_preserves_zero_and_equal_bounds(client, field):
+    storage.save_company(_sample_company(
+        income_summary={"매출액": {"2025": 0}, "영업이익": {"2025": 0}, "당기순이익": {"2025": 0}},
+        ratio_summary={"부채비율": {"2025": 0}},
+    ))
+    res = client.get("/api/companies", params={f"{field}_from": 0, f"{field}_to": 0})
+    assert res.status_code == 200
+    assert res.json()["total"] == 1
+
+
+def test_metric_range_allows_one_sided_and_negative_profit(client):
+    storage.save_company(_sample_company(
+        income_summary={"매출액": {"2025": 8307}, "영업이익": {"2025": -250}, "당기순이익": {"2025": -100}},
+    ))
+    assert client.get("/api/companies", params={"revenue_from": 8000}).json()["total"] == 1
+    assert client.get("/api/companies", params={"revenue_to": 9000}).json()["total"] == 1
+    assert client.get("/api/companies", params={"operating_profit_from": -300, "operating_profit_to": -200}).json()["total"] == 1
+    assert client.get("/api/companies").json()["total"] == 1
+
+
+def test_metric_range_rejects_non_finite_number(client):
+    res = client.get("/api/companies?revenue_from=1e309")
+    assert res.status_code == 422
+    assert res.json()["detail"] == "매출액에는 유효한 숫자를 입력해 주세요."
+
+
 def test_sort_by_revenue_and_credit_grade(client):
     storage.save_company(_sample_company())  # bb+, revenue 8307
     storage.save_company(_sample_company(

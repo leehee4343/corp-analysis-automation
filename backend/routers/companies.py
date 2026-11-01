@@ -6,7 +6,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 
-from ._filters import MetricRanges
+from ._filters import MetricRanges, validate_metric_ranges
 from .. import storage
 from ..excel.generator import generate_excel
 from ..models import Company, CompanyList, CompanyUpdate, DashboardSummary
@@ -28,10 +28,13 @@ def list_companies(
     page: int = 1,
     page_size: int = 20,
 ):
+    validated_ranges = validate_metric_ranges(
+        ranges, revenue_min=revenue_min, revenue_max=revenue_max,
+    )
     companies = storage.filter_companies(
         storage.list_companies(project_id),
         q=q, industry=industry, grade_band_filter=grade_band,
-        revenue_min=revenue_min, revenue_max=revenue_max, ranges=ranges.as_dict(),
+        revenue_min=revenue_min, revenue_max=revenue_max, ranges=validated_ranges,
     )
     companies = storage.sort_companies(companies, sort, order)
 

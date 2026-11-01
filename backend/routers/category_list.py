@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ._filters import MetricRanges
+from ._filters import MetricRanges, validate_metric_ranges
 from .. import category_list, storage
 from ..models import CategoryList
 
@@ -34,12 +34,15 @@ def list_category(
     page_size: int = 20,
 ):
     meta = _require_category(category)
+    validated_ranges = validate_metric_ranges(
+        ranges, revenue_min=revenue_min, revenue_max=revenue_max,
+    )
 
     companies = [c for c in storage.list_companies(project_id) if category_list.classify(c) == category]
     companies = storage.filter_companies(
         companies,
         q=q, industry=industry, grade_band_filter=grade_band,
-        revenue_min=revenue_min, revenue_max=revenue_max, ranges=ranges.as_dict(),
+        revenue_min=revenue_min, revenue_max=revenue_max, ranges=validated_ranges,
     )
     companies = storage.sort_companies(companies, sort, order)
 

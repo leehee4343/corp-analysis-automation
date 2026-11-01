@@ -806,9 +806,9 @@ def filter_companies(
     if grade_band_filter:
         companies = [c for c in companies if grade_band(c.credit_grade) == grade_band_filter]
     if revenue_min is not None:
-        companies = [c for c in companies if (latest_revenue(c) or 0) >= revenue_min]
+        companies = [c for c in companies if latest_revenue(c) is not None and latest_revenue(c) >= revenue_min]
     if revenue_max is not None:
-        companies = [c for c in companies if (latest_revenue(c) or 0) < revenue_max]
+        companies = [c for c in companies if latest_revenue(c) is not None and latest_revenue(c) <= revenue_max]
     for metric, (lo, hi) in (ranges or {}).items():
         if lo is None and hi is None:
             continue

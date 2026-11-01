@@ -128,3 +128,13 @@ def test_category_list_revenue_filter(client):
     assert res.json()["total"] == 1
     res2 = client.get("/api/category-list/individual", params={"revenue_min": 100000})
     assert res2.json()["total"] == 0
+
+
+@pytest.mark.parametrize("field", ["revenue", "operating_profit", "net_income", "debt_ratio"])
+def test_category_list_rejects_reversed_metric_range(client, field):
+    res = client.get(
+        "/api/category-list/individual",
+        params={f"{field}_from": 1000, f"{field}_to": 0},
+    )
+    assert res.status_code == 422
+    assert "최소값은 최대값보다 클 수 없습니다" in res.json()["detail"]

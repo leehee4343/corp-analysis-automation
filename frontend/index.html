@@ -162,6 +162,8 @@ textarea.form-control{height:auto; min-height:96px; padding:10px 12px; resize:ve
 .filter-label.w-80{min-width:80px;}
 .filter-label.w-130{min-width:130px;}
 .filter-range{display:flex; align-items:center; gap:8px; color:var(--text-muted);}
+.filter-range-wrap{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.metric-range-error{margin-top:2px;}
 .filter-input.range-input{flex:0 0 150px; width:150px;}
 .filter-action-row{display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border-light); margin-top:4px; padding-top:16px;}
 
@@ -486,11 +488,52 @@ body.modal-open{overflow:hidden;}
 /* ===== 반응형 (4.6) ===== */
 @media (max-width:1440px){ .bar-row{grid-template-columns:120px minmax(0,1fr) 84px;} }
 @media (max-width:1100px){
+  :root{--content-edge-gap:20px;}
+  .top-header, .header-right, .project-switch{min-width:0;}
+  .sidebar{position:fixed; top:var(--header-height); bottom:0; left:0; width:min(270px, calc(100vw - 48px));
+    transform:translateX(-100%); visibility:hidden; box-shadow:var(--shadow-md); transition:transform var(--transition-normal), visibility var(--transition-normal);}
+  body:not(.sidebar-collapsed) .sidebar{transform:translateX(0); visibility:visible;}
+  body.sidebar-collapsed .sidebar{width:min(270px, calc(100vw - 48px));}
+  body.sidebar-collapsed .sidebar-nav{padding:16px 10px;}
+  body.sidebar-collapsed .nav-link{justify-content:flex-start; padding:0 12px;}
+  body.sidebar-collapsed .nav-text{display:block;}
+  .main-content{width:100%; max-width:100%;}
+  .header-right{flex:1; gap:10px; padding-right:20px;}
+  .project-switch{flex:1;}
+  .project-switch .filter-select{width:100%; max-width:320px;}
   .card-grid.cols-2, .search-filter-grid{grid-template-columns:minmax(0,1fr);}
   .todo-grid.cols-4{grid-template-columns:repeat(2, minmax(0,1fr));}
   .todo-grid.cols-5{grid-template-columns:repeat(3, minmax(0,1fr));}
+  .table-actions{max-width:100%; flex-wrap:wrap; justify-content:flex-end;}
 }
-@media (max-width:760px){ .kv-grid{grid-template-columns:minmax(0,1fr);} .kv-row.wide{grid-column:auto;} }
+@media (max-width:760px){
+  :root{--content-edge-gap:12px; --content-card-padding:14px; --content-object-gap:12px;}
+  .header-brand{padding:0 6px 0 10px; gap:4px;}
+  .system-title, .project-switch-label, .header-user-name{display:none;}
+  .header-right{padding:0 10px 0 6px; gap:8px;}
+  .project-switch .filter-select{max-width:none; padding-left:8px; padding-right:28px; background-position:right 8px center;}
+  .header-user{padding-left:8px; gap:8px;}
+  .main-content{padding:16px var(--content-edge-gap) 28px;}
+  .page-title-wrap{align-items:flex-start; flex-wrap:wrap;}
+  .breadcrumb{white-space:normal;}
+  .kv-grid{grid-template-columns:minmax(0,1fr);} .kv-row.wide{grid-column:auto;}
+  .todo-grid.cols-4, .todo-grid.cols-5{grid-template-columns:repeat(2, minmax(0,1fr));}
+  .filter-row{align-items:stretch; flex-direction:column; gap:6px;}
+  .filter-label.w-80, .filter-label.w-130{min-width:0;}
+  .filter-input, .filter-select{width:100%; max-width:none;}
+  .filter-range-wrap, .filter-range{width:100%;}
+  .filter-input.range-input{flex:1 1 0; width:0; min-width:0;}
+  .filter-action-row > button{flex:1 1 0;}
+  .table-header-action-row{align-items:flex-start;}
+  .table-actions{width:100%; justify-content:flex-start;}
+  .table-actions > :is(button, a, select){max-width:100%;}
+  .chart-table-head{align-items:flex-start; flex-wrap:wrap;}
+}
+@media (max-width:420px){
+  .todo-grid.cols-4, .todo-grid.cols-5{grid-template-columns:minmax(0,1fr);}
+  .header-logout{font-size:12px;}
+  .brand-symbol{width:20px;}
+}
 @media (prefers-reduced-motion:reduce){ *, *::before, *::after{transition-duration:.01ms !important; animation-duration:.01ms !important;} }
 
 /* ===== 인쇄 · PDF (4.3) ===== */
@@ -1322,17 +1365,22 @@ function setActiveMenu(route){
 }
 function initSidebarToggle(){
   const btn = document.getElementById('sidebarToggle');
+  const compactQuery = window.matchMedia('(max-width:1100px)');
   const apply = collapsed => {
     document.body.classList.toggle('sidebar-collapsed', collapsed);
     btn.setAttribute('aria-expanded', String(!collapsed));
     btn.setAttribute('aria-label', collapsed ? '메뉴 펼치기' : '메뉴 접기');
   };
-  apply(storageGet('sidebarCollapsed') === '1');
+  apply(compactQuery.matches || storageGet('sidebarCollapsed') === '1');
   btn.addEventListener('click', () => {
     const collapsed = !document.body.classList.contains('sidebar-collapsed');
     apply(collapsed);
-    storageSet('sidebarCollapsed', collapsed ? '1' : '0');
+    if(!compactQuery.matches) storageSet('sidebarCollapsed', collapsed ? '1' : '0');
   });
+  document.getElementById('sidebar').addEventListener('click', e => {
+    if(compactQuery.matches && e.target.closest('a[href]')) apply(true);
+  });
+  compactQuery.addEventListener('change', e => apply(e.matches ? true : storageGet('sidebarCollapsed') === '1'));
 }
 
 function parseHash(){
@@ -1964,12 +2012,12 @@ function listScreenTemplate(key){
         <div class="filter-row"><label class="filter-label w-130" for="${p}-grade">신용등급</label>
           <select class="filter-select" id="${p}-grade" name="grade"><option value="">전체</option><option value="A~BBB">A~BBB</option><option value="BB">BB</option><option value="B">B</option><option value="CCC 이하">CCC 이하</option></select></div>
         <div class="filter-row"></div>
-        ${METRIC_FILTERS.map(m => `<div class="filter-row"><span class="filter-label w-130" id="${p}-${m.key}-label">${esc(m.label)}</span>
-          <div class="filter-range" role="group" aria-labelledby="${p}-${m.key}-label">
-            <input class="filter-input range-input" type="number" step="any" name="${m.key}_from" placeholder="최소" aria-label="${esc(m.label)} 최소">
+        ${METRIC_FILTERS.map(m => `<div class="filter-row metric-filter-row"><span class="filter-label w-130" id="${p}-${m.key}-label">${esc(m.label)}</span>
+          <div class="filter-range-wrap"><div class="filter-range" role="group" aria-labelledby="${p}-${m.key}-label">
+            <input class="filter-input range-input" type="number" step="any" name="${m.key}_from" placeholder="최소" aria-label="${esc(m.label)} 최소" aria-describedby="${p}-${m.key}-error">
             <span aria-hidden="true">~</span>
-            <input class="filter-input range-input" type="number" step="any" name="${m.key}_to" placeholder="최대" aria-label="${esc(m.label)} 최대">
-          </div></div>`).join('')}
+            <input class="filter-input range-input" type="number" step="any" name="${m.key}_to" placeholder="최대" aria-label="${esc(m.label)} 최대" aria-describedby="${p}-${m.key}-error">
+          </div><p class="form-error metric-range-error" id="${p}-${m.key}-error" hidden></p></div></div>`).join('')}
       </div>
       <div class="filter-action-row">
         <button type="submit" class="btn-search-main">검색</button>
@@ -2014,6 +2062,7 @@ function buildListScreens(){
     });
     screen.form.addEventListener('submit', e => {
       e.preventDefault();
+      if(!validateMetricRanges(screen.form)) return;
       const f = screen.form.elements;
       const ranges = Object.fromEntries(Object.keys(EMPTY_RANGES()).map(k => [k, f[k].value.trim()]));
       Object.assign(screen.state, {q:f.q.value.trim(), industry:f.industry.value, grade:f.grade.value, ...ranges, page:1});
@@ -2021,9 +2070,11 @@ function buildListScreens(){
     });
     screen.form.querySelector('[data-action="reset"]').addEventListener('click', () => {
       screen.form.reset();
+      clearMetricRangeErrors(screen.form);
       Object.assign(screen.state, {q:'', industry:'', grade:'', ...EMPTY_RANGES(), page:1});
       loadListScreen(screen);
     });
+    screen.form.querySelectorAll('.range-input').forEach(input => input.addEventListener('input', () => clearMetricRangeError(input)));
     section.querySelector('[data-role="per-page"]').addEventListener('change', e => {
       screen.state.pageSize = Number(e.target.value);
       screen.state.page = 1;
@@ -2038,6 +2089,43 @@ function buildListScreens(){
     section.querySelector('[data-action="add-existing"]')?.addEventListener('click', () => openAddExisting(screen));
     LIST_SCREENS[key] = screen;
   });
+}
+function clearMetricRangeError(input){
+  const key = input.name.replace(/_(from|to)$/, '');
+  const form = input.form;
+  const error = form.querySelector(`[id$="-${CSS.escape(key)}-error"]`);
+  form.elements[`${key}_from`]?.removeAttribute('aria-invalid');
+  form.elements[`${key}_to`]?.removeAttribute('aria-invalid');
+  if(error){ error.hidden = true; error.textContent = ''; }
+}
+function clearMetricRangeErrors(form){
+  form.querySelectorAll('.range-input').forEach(input => input.removeAttribute('aria-invalid'));
+  form.querySelectorAll('.metric-range-error').forEach(error => { error.hidden = true; error.textContent = ''; });
+}
+function validateMetricRanges(form){
+  clearMetricRangeErrors(form);
+  let firstInvalid = null;
+  METRIC_FILTERS.forEach(metric => {
+    const minimum = form.elements[`${metric.key}_from`];
+    const maximum = form.elements[`${metric.key}_to`];
+    const hasMinimum = minimum.value.trim() !== '';
+    const hasMaximum = maximum.value.trim() !== '';
+    let message = '';
+    if((hasMinimum && (!minimum.validity.valid || !Number.isFinite(minimum.valueAsNumber))) ||
+       (hasMaximum && (!maximum.validity.valid || !Number.isFinite(maximum.valueAsNumber)))){
+      message = '유효한 숫자를 입력해 주세요.';
+    }else if(hasMinimum && hasMaximum && minimum.valueAsNumber > maximum.valueAsNumber){
+      message = '최소값은 최대값보다 클 수 없습니다.';
+    }
+    if(!message) return;
+    minimum.setAttribute('aria-invalid', 'true');
+    maximum.setAttribute('aria-invalid', 'true');
+    const error = form.querySelector(`[id$="-${CSS.escape(metric.key)}-error"]`);
+    if(error){ error.textContent = message; error.hidden = false; }
+    firstInvalid ||= minimum;
+  });
+  firstInvalid?.focus();
+  return !firstInvalid;
 }
 function listParams(state, overrides = {}){
   const s = {...state, ...overrides};
